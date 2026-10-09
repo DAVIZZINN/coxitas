@@ -254,7 +254,7 @@
     if (cxLoading) return;
     cxLoading = true;
     const s = document.createElement('script');
-    s.src = 'assets/coxinha3d.js?v=6';
+    s.src = 'assets/coxinha3d.js?v=7';
     s.async = true;
     s.onload = () => {
       try { cx = window.Coxinha3D.mount(cv, { maxDpr: VW < 640 ? 1.5 : 1, fps: lite() ? 30 : 60, crumbs: crumbsCv, onPhase: cxPhase, onFrame: cxFrame, onFail: () => { cxFail(); goVideos(); }, onReady: () => setTimeout(goVideos, 250) }); } catch (e) { cx = null; }
