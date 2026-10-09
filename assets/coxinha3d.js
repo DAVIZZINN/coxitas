@@ -305,7 +305,8 @@ out vec4 fragOut;`).replace('STEPS', 'uSteps').split('N4').join('uN').split('N3'
     })();
 
     let res = Math.min(window.devicePixelRatio || 1, opts.maxDpr || 1.5);
-    let w = 0, h = 0, cssW = 0, cssH = 0, raf = 0, running = false, last = 0, clock = 0, slow = 0, shown = 0;
+    let w = 0, h = 0, cssW = 0, cssH = 0, raf = 0, running = false, last = 0, clock = 0, shown = 0;
+    let fps = opts.fps || 60, acc = 0, nAcc = 0;
     let A = { inX: 0, inY: -.15, topY: .05, ceil: .46 };
     const drag = { yaw: 0, pitch: 0, on: false };
     let lastPhase = '';
@@ -405,14 +406,14 @@ out vec4 fragOut;`).replace('STEPS', 'uSteps').split('N4').join('uN').split('N3'
       if (!running || !ready) return;
       raf = requestAnimationFrame(frame);
       const dt = last ? Math.min(.1, (now - last) / 1000) : 0;
-      // no máximo 60 desenhos por segundo, mesmo em tela de 120 ou 144Hz
-      if (last && now - last < 15.5) return;
+      // no máximo 60 desenhos por segundo (30 no modo leve), mesmo em tela de 90, 120 ou 144Hz
+      if (last && now - last < 1000 / fps - 1.2) return;
       last = now;
       clock = (clock + dt) % LOOP;
       if (!drag.on) { drag.yaw *= .92; drag.pitch *= .92; }
-      // aparelho sofrendo: desenha com menos pixels
-      if (dt > .034) slow++; else slow = Math.max(0, slow - 1);
-      if (slow > 20 && res > .6) { res *= .8; slow = 0; size(); }
+      // aparelho sofrendo (média de 30 desenhos bem acima do tempo de um quadro): desenha com menos pixels
+      if (dt) { acc += dt; nAcc++; }
+      if (nAcc >= 30) { if (acc / nAcc > 1.3 / fps && res > .7) { res = Math.max(.7, res * .85); size(); } acc = 0; nAcc = 0; }
       draw(clock, dt);
     }
     function start() { if (running || failed) return; running = true; last = 0; size(); if (ready) raf = requestAnimationFrame(frame); }
@@ -429,7 +430,8 @@ out vec4 fragOut;`).replace('STEPS', 'uSteps').split('N4').join('uN').split('N3'
     const up = () => { drag.on = false; };
     canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
     canvas.style.opacity = '0';
-    return { start, stop, renderAt, size, setAnchors, LOOP, get anchors() { return A; } };
+    function setFps(f) { fps = f; acc = 0; nAcc = 0; }
+    return { start, stop, renderAt, size, setAnchors, setFps, LOOP, get anchors() { return A; } };
   }
 
   window.Coxinha3D = { mount, pose, LOOP };

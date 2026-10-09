@@ -65,7 +65,7 @@
 <link rel="preload" href="assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" href="assets/img/poster-recheio-480.webp" imagesrcset="assets/img/poster-recheio-480.webp 480w, assets/img/poster-recheio-720.webp 720w" imagesizes="(max-width: 639px) 46vw, 340px" fetchpriority="high">
-<link rel="stylesheet" href="assets/site.css?v=5">
+<link rel="stylesheet" href="assets/site.css?v=6">
 <script>
   // animações ligadas para todo mundo, no computador e no celular; quem preferir desliga no rodapé
   (function (d) { var m = null; try { m = localStorage.getItem('cx-anim'); } catch (e) {}
@@ -101,7 +101,7 @@
 
 <!-- fundo vivo: cada parte do site tem a sua luz, e as migalhas de farinha flutuam devagar por cima -->
 <div class="bg" aria-hidden="true">
-  <div class="bg-layer" data-for="inicio"><i></i><i></i></div>
+  <div class="bg-layer on" data-for="inicio"><i></i><i></i></div>
   <div class="bg-layer" data-for="cardapio"><i></i><i></i></div>
   <div class="bg-layer" data-for="coxinha"><i></i><i></i></div>
   <div class="bg-layer" data-for="sobre"><i></i><i></i></div>
@@ -626,6 +626,6 @@
 
 <p class="sr" id="live" aria-live="polite"></p>
 
-<script src="assets/site.js?v=5" defer></script>
+<script src="assets/site.js?v=6" defer></script>
 </body>
 </html>

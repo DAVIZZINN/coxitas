@@ -7,7 +7,7 @@
     whatsapp: '5517996433594',   // só números: 55 + DDD + número
     ifood: '',                   // cole aqui o link oficial do iFood; vazio deixa os botões do iFood escondidos
     mensagem: 'Olá, Coxitas! Vi o site e quero fazer um pedido.',
-    fuso: 'America/Sao_Paulo',
+    utc: -3,                     // fuso de Votuporanga (horário de Brasília). O Brasil está sem horário de verão desde 2019; se voltar, use -2 no verão
     // horário de funcionamento: [abre, fecha] em horas, de domingo (0) a sábado (6)
     horarios: [[15, 20], [9, 21], [9, 21], [9, 21], [9, 21], [9, 21], [9, 21]],
     mapa: 'https://www.google.com/maps/embed?origin=mfe&pb=!1m3!2m1!1sCoxitas+Salgados+de+Festa,+R.+Francisco+Pelegrini,+5819,+Votuporanga+-+SP!6i16!3m1!1spt-BR!5m1!1spt-BR',
@@ -17,8 +17,8 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const root = document.documentElement;
   const reduced = () => root.classList.contains('rm');
-  const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-  const fmt = c => money.format(c / 100);
+  // R$ 1.234,56 (o mesmo que o Intl do navegador escreve, sem o custo de montar o formatador ao abrir a página)
+  const fmt = c => { const [r, d] = (Math.abs(c) / 100).toFixed(2).split('.'); return (c < 0 ? '-' : '') + 'R$ ' + r.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d; };
   const fmtTxt = c => fmt(c).replace(/\s/g, ' ');
   const priceHTML = txt => `<small>R$</small> ${String(txt).replace(/^\s*R\$\s*/, '')}`;
   const toCents = s => Math.round(parseFloat(String(s).replace(/[^\d,]/g, '').replace(',', '.')) * 100) || 0;
@@ -40,11 +40,10 @@
   $$('[data-year]').forEach(el => { el.textContent = new Date().getFullYear(); });
 
   /* ---------- aberto agora? (pelo relógio de Votuporanga, não do aparelho) ---------- */
-  const DIAS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  // conta direto no relógio mundial (UTC): o formatador de fuso do navegador custa caro para montar no celular
   function agora() {
-    const p = new Intl.DateTimeFormat('en-US', { timeZone: LOJA.fuso, weekday: 'short', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date());
-    const v = t => p.find(x => x.type === t).value;
-    return { dia: DIAS.indexOf(v('weekday')), min: +v('hour') * 60 + +v('minute') };
+    const d = new Date(Date.now() + LOJA.utc * 3600e3);
+    return { dia: d.getUTCDay(), min: d.getUTCHours() * 60 + d.getUTCMinutes() };
   }
   function situacao() {
     const { dia, min } = agora();
@@ -94,11 +93,14 @@
   // a seção no meio da tela decide o link aceso no menu e a luz do fundo
   const navLinks = $$('.nav-links a, .menu a');
   const body = document.body;
+  const bgLayers = $$('.bg-layer');
   const sceneIO = new IntersectionObserver(entries => {
     entries.forEach(en => {
       if (!en.isIntersecting) return;
-      const id = en.target.id;
-      body.dataset.scene = en.target.dataset.scene;
+      const id = en.target.id, scene = en.target.dataset.scene;
+      if (body.dataset.scene === scene) return;
+      body.dataset.scene = scene;
+      bgLayers.forEach(l => l.classList.toggle('on', l.dataset.for === scene));
       navLinks.forEach(a => {
         const on = a.hash === '#' + id;
         a.classList.toggle('on', on);
@@ -115,11 +117,14 @@
   $$('.rv, .split').forEach(el => rvIO.observe(el));
   const kbIO = new IntersectionObserver(entries => entries.forEach(e => e.target.classList.toggle('on', e.isIntersecting)));
   $$('.kb').forEach(el => kbIO.observe(el));
+  // vapor, brasas, faixa do cardápio, selo e mascote param quando a parte deles sai da tela (e voltam um pouco antes de reaparecer)
+  const zzIO = new IntersectionObserver(entries => entries.forEach(e => e.target.classList.toggle('zz', !e.isIntersecting)), { rootMargin: '200px 0px' });
+  $$('.hero, .ticker, #coxinha, #sobre, #pedir').forEach(el => zzIO.observe(el));
 
   /* ---------- fundo: migalhas de farinha subindo devagar (animação de CSS, sem desenho por script) ---------- */
   const bgBox = $('#bgCrumbs');
   if (bgBox) idle(() => {
-    const n = innerWidth < 640 ? 10 : 18, cores = ['#E8963A', '#C96F22', '#F2B65A', '#B5651D'];
+    const n = innerWidth < 640 ? 8 : 16, cores = ['#E8963A', '#C96F22', '#F2B65A', '#B5651D'];
     const frag = document.createDocumentFragment();
     for (let k = 0; k < n; k++) {
       const depth = .3 + Math.random() * .7, el = document.createElement('i');
@@ -136,10 +141,11 @@
     const group = $('.tk-group', track);
     track.appendChild(group.cloneNode(true));
     const speed = +row.dataset.speed || 40;    // pixels por segundo
-    const fit = () => { const w = group.getBoundingClientRect().width; if (w) track.style.setProperty('--dur', (w / speed).toFixed(2) + 's'); };
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit); else fit();
-    addEventListener('load', fit, { once: true });
-    addEventListener('resize', fit, { passive: true });
+    // a velocidade vem da largura do grupo, lida quando o navegador já mediu tudo (sem obrigá-lo a montar a página
+    // antes da hora); muda sozinha quando as letras carregam ou a tela gira
+    const fit = w => { if (w) track.style.setProperty('--dur', (w / speed).toFixed(2) + 's'); };
+    if (window.ResizeObserver) new ResizeObserver(([e]) => fit(e.borderBoxSize && e.borderBoxSize[0] ? e.borderBoxSize[0].inlineSize : group.getBoundingClientRect().width)).observe(group);
+    else addEventListener('load', () => fit(group.getBoundingClientRect().width), { once: true });
     // no celular: segurar o dedo pausa a faixa
     row.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') row.classList.add('hold'); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => row.addEventListener(t, () => row.classList.remove('hold')));
@@ -151,12 +157,18 @@
   // economia de dados ou internet muito lenta: fica a foto de capa, sem baixar vídeo
   const conn = navigator.connection || {};
   const saveData = !!conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '');
+  // aparelho fraco (pouca memória ou poucos núcleos): só o vídeo do meio toca, os dos lados ficam na foto
+  const weak = saveData || (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2);
+  const phone = matchMedia('(max-width: 639px)').matches;
+  const touch = matchMedia('(pointer: coarse)').matches;
   function syncVideo(v) {
-    const want = videoOk && v._seen && !reduced() && !saveData && !document.hidden;
+    const side = !v.closest('.reel-c');
+    const want = videoOk && v._seen && !reduced() && !saveData && !document.hidden && !(weak && side);
     if (want) {
       if (!v.getAttribute('src')) {
-        // computador e tablet ganham o vídeo mais nítido; celular, o mais leve
-        v.src = v.dataset.src + (VW >= 900 ? '-720.mp4' : '-480.mp4');
+        // computador ganha o vídeo mais nítido; tablet e o vídeo do meio no celular, o médio;
+        // os dos lados no celular aparecem pequenos e meio escondidos, então descem o mais leve
+        v.src = v.dataset.src + (VW >= 900 ? '-720.mp4' : phone && side ? '-360.mp4' : '-480.mp4');
         v.addEventListener('playing', () => v.classList.add('on'), { once: true });
       }
       const p = v.play();
@@ -173,18 +185,30 @@
   /* ---------- modo leve automático: o site se defende quando o aparelho está apertado ---------- */
   // aparelho fraco ou economia de dados: leve desde o começo. Senão, 3 engasgos (quadro de mais de 90ms) em 5s
   // deixam os enfeites de fundo descansando por 10s; o cardápio, os vídeos e o pedido continuam iguais
-  const weak = saveData || (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2);
+  // no modo leve a coxinha 3D também desenha a 30 quadros por segundo em vez de 60
+  let cx = null, cxSeen = false, cxLoading = false;
   let liteUntil = 0, hiccups = [];
-  if (weak) root.classList.add('lite');
+  const lite = () => root.classList.contains('lite');
+  function setLite(on) {
+    if (on === lite()) return;
+    root.classList.toggle('lite', on);
+    if (cx && cx.setFps) cx.setFps(on ? 30 : 60);
+  }
+  if (weak) setLite(true);
   else {
+    // engasgo na abertura é normal (a página está sendo montada) e não quer dizer aparelho fraco:
+    // só conta depois que a página assentou
+    let settled = Infinity;
+    const settle = () => { settled = performance.now() + 3000; };
+    if (document.readyState === 'complete') settle(); else addEventListener('load', settle, { once: true });
     try {
       new PerformanceObserver(list => {
         const now = performance.now();
-        list.getEntries().forEach(e => { if (e.duration > 90) hiccups.push(now); });
+        list.getEntries().forEach(e => { if (e.duration > 90 && e.startTime > settled) hiccups.push(now); });
         hiccups = hiccups.filter(t => now - t < 5000);
-        if (hiccups.length >= 3) { root.classList.add('lite'); liteUntil = now + 10000; hiccups = []; }
+        if (hiccups.length >= 3) { setLite(true); liteUntil = now + 10000; hiccups = []; }
       }).observe({ type: 'long-animation-frame' });
-      setInterval(() => { if (liteUntil && performance.now() > liteUntil) { root.classList.remove('lite'); liteUntil = 0; } }, 2000);
+      setInterval(() => { if (liteUntil && performance.now() > liteUntil) { setLite(false); liteUntil = 0; } }, 2000);
     } catch (e) {}
   }
 
@@ -194,7 +218,6 @@
   const crumbsCv = $('#cxCrumbs');
   const shadow = $('#cxShadow');
   const steps = $$('.show-steps li');
-  let cx = null, cxSeen = false, cxLoading = false;
   function cxFail() { stage.classList.add('no3d'); }
   function cxPhase(ph) {
     const p = ph === 'abrindo' ? 'aberta' : ph;
@@ -231,10 +254,10 @@
     if (cxLoading) return;
     cxLoading = true;
     const s = document.createElement('script');
-    s.src = 'assets/coxinha3d.js?v=5';
+    s.src = 'assets/coxinha3d.js?v=6';
     s.async = true;
     s.onload = () => {
-      try { cx = window.Coxinha3D.mount(cv, { maxDpr: VW < 640 ? 1.5 : 1, crumbs: crumbsCv, onPhase: cxPhase, onFrame: cxFrame, onFail: () => { cxFail(); goVideos(); }, onReady: () => setTimeout(goVideos, 250) }); } catch (e) { cx = null; }
+      try { cx = window.Coxinha3D.mount(cv, { maxDpr: VW < 640 ? 1.5 : 1, fps: lite() ? 30 : 60, crumbs: crumbsCv, onPhase: cxPhase, onFrame: cxFrame, onFail: () => { cxFail(); goVideos(); }, onReady: () => setTimeout(goVideos, 250) }); } catch (e) { cx = null; }
       if (!cx) { goVideos(); return cxFail(); }
       cxLayout();
       cxSync();
@@ -243,9 +266,25 @@
     document.head.appendChild(s);
   }
   new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) cxBoot(); }, { rootMargin: '700px 0px' }).observe(stage);
-  // a primeira vez que o Chrome liga o 3D a página dá uma parada curta; isso acontece logo depois de abrir,
-  // com a pessoa ainda lendo o topo, e não no meio da rolagem. Os vídeos começam quando o 3D termina.
-  const afterLoad = () => setTimeout(() => idle(() => { cxBoot(); setTimeout(goVideos, 3500); }, { timeout: 800 }), 700);
+  // computador com Windows: a primeira vez que o Chrome liga o 3D a página dá uma parada curta (ele traduz o desenho
+  // para o DirectX); isso acontece logo depois de abrir, com a pessoa ainda lendo o topo, e os vídeos começam quando
+  // o 3D termina. Celular e o resto: os vídeos começam logo e o 3D desce depois, sem disputar a internet e o
+  // processador da abertura (ou antes, se a pessoa rolar até perto dele)
+  // o relógio só começa depois que a primeira tela apareceu de verdade (o aviso de "primeira pintura" do navegador):
+  // com internet rápida o carregamento termina antes dela, e os vídeos não podem disputar com a capa
+  const earlyCx = /Windows/.test(navigator.userAgent) && !touch;
+  function afterPaint(f) {
+    try {
+      if (performance.getEntriesByName('first-contentful-paint').length) return f();
+      // o primeiro aviso costuma ser só a cor de fundo ("first-paint"); espera o de conteúdo de verdade
+      const po = new PerformanceObserver(list => { if (list.getEntries().some(e => e.name === 'first-contentful-paint')) { po.disconnect(); f(); } });
+      po.observe({ type: 'paint' });
+    } catch (e) { requestAnimationFrame(() => requestAnimationFrame(f)); }
+  }
+  const afterLoad = () => afterPaint(() => setTimeout(() => idle(() => {
+    if (earlyCx) { cxBoot(); setTimeout(goVideos, 3500); }
+    else { goVideos(); setTimeout(() => idle(cxBoot, { timeout: 2000 }), 4000); }
+  }, { timeout: 800 }), earlyCx ? 700 : 900));
   if (document.readyState === 'complete') afterLoad(); else addEventListener('load', afterLoad, { once: true });
   new IntersectionObserver(([e]) => { cxSeen = e.isIntersecting; if (cxSeen) cxLayout(); cxSync(); }).observe(stage);
   document.addEventListener('visibilitychange', cxSync);
@@ -253,14 +292,25 @@
   addEventListener('resize', () => { clearTimeout(cxRz); cxRz = setTimeout(cxLayout, 150); }, { passive: true });
 
   /* ---------- mapa do Google: entra sozinho quando a seção chega perto ---------- */
+  // o mapa do Google é pesado: carregado no meio de uma rolagem ele dá um tranco (principalmente no celular), então
+  // espera a pessoa parar de rolar perto dele; com a tela parada, ninguém percebe
   const map = $('#map');
   const mapFrame = $('iframe', map);
+  let mapDone = false, mapT = 0;
+  function mapLoad() {
+    if (mapDone) return;
+    mapDone = true;
+    removeEventListener('scroll', mapWait);
+    mapFrame.addEventListener('load', () => map.classList.add('loaded'), { once: true });
+    mapFrame.src = LOJA.mapa;
+  }
+  function mapWait() { clearTimeout(mapT); mapT = setTimeout(mapLoad, 280); }
   new IntersectionObserver((entries, io) => {
     if (!entries.some(e => e.isIntersecting)) return;
     io.disconnect();
-    mapFrame.addEventListener('load', () => map.classList.add('loaded'), { once: true });
-    mapFrame.src = LOJA.mapa;
-  }, { rootMargin: '600px 0px' }).observe(map);
+    addEventListener('scroll', mapWait, { passive: true });
+    mapWait();
+  }, { rootMargin: '900px 0px' }).observe(map);
 
   /* ---------- cardápio: abas que acompanham a rolagem ---------- */
   const tabsBar = $('.tabs');
