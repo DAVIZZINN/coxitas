@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Painel · Coxitas</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0E0603">
+<!-- só carrega código daqui e só conversa com o Supabase (e com o Supabase local de teste) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321; base-uri 'none'; form-action 'self'; object-src 'none'">
+<link rel="icon" href="../favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preload" href="../assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/app.css?v=1">
+<link rel="stylesheet" href="admin.css?v=1">
+</head>
+<body>
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/></g></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></g></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 12v8h14v-8"/></g></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h5v16h-5"/><path d="M10 16l-4-4 4-4M6 12h10"/></g></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></g></symbol>
+  <symbol id="i-bell-off" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 9.3-5M18 11v5l1.5 2h-15"/><path d="M10 20.5a2 2 0 0 0 4 0M3 3l18 18"/></g></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></g></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.6 3.5h2.6l1.4 4-2 1.3a11 11 0 0 0 6.6 6.6l1.3-2 4 1.4v2.6a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.6 5.7a2 2 0 0 1 2-2.2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11.5a7 7 0 0 0-14 0C5 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></g></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M7 8V3.5h10V8"/><rect x="3.5" y="8" width="17" height="8.5" rx="2"/><path d="M7 14h10v6.5H7z"/></g></symbol>
+  <symbol id="i-wa" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.3c0-.1-.2-.2-.5-.3Z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.7L4 8"/><path d="M4 3.5V8h4.5"/><path d="M4 13a8 8 0 0 0 14.3 4.7L20 16"/><path d="M20 20.5V16h-4.5"/></g></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<!-- falta configurar -->
+<main class="center" data-v="config" hidden>
+  <div class="card gate">
+    <img src="../assets/img/icon-96.webp" width="56" height="56" alt="">
+    <h1 class="display">Falta ligar o banco de pedidos</h1>
+    <p class="muted">Crie o projeto no Supabase e preencha <code>assets/config.js</code> com a URL e a chave pública (passo a passo em <code>supabase/LEIA-ME.md</code>).</p>
+  </div>
+</main>
+
+<!-- login -->
+<main class="center" data-v="login" hidden>
+  <form class="card gate" data-login novalidate>
+    <img src="../assets/img/icon-96.webp" width="56" height="56" alt="">
+    <h1 class="display">Painel da Coxitas</h1>
+    <p class="muted">Área da equipe. Entre com o e-mail e a senha cadastrados.</p>
+    <div class="field"><label for="l-email">E-mail</label><input class="input" id="l-email" name="email" type="email" autocomplete="username" required></div>
+    <div class="field"><label for="l-senha">Senha</label><input class="input" id="l-senha" name="senha" type="password" autocomplete="current-password" required></div>
+    <p class="alert" data-login-err role="alert" hidden></p>
+    <button class="btn" type="submit" data-login-btn>Entrar</button>
+    <a class="link back" href="../">Voltar para o site</a>
+  </form>
+</main>
+
+<!-- conta sem acesso -->
+<main class="center" data-v="negado" hidden>
+  <div class="card gate">
+    <h1 class="display">Esta conta não tem acesso</h1>
+    <p class="muted">O login deu certo, mas este e-mail não está na equipe da loja. Peça para o dono liberar o acesso.</p>
+    <button class="btn btn-line" type="button" data-sair>Sair</button>
+  </div>
+</main>
+
+<!-- o painel -->
+<div class="app" data-v="app" hidden>
+  <aside class="side">
+    <a class="brand" href="../" title="Abrir o site"><img src="../assets/img/icon-96.webp" width="36" height="36" alt=""><span>Coxitas<small>Painel</small></span></a>
+    <nav class="nav" aria-label="Seções do painel">
+      <a href="#painel" data-tab="painel"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span>Painel</span></a>
+      <a href="#pedidos" data-tab="pedidos"><svg class="ico" aria-hidden="true"><use href="#i-list"/></svg><span>Pedidos</span><b class="badge" data-badge-novos hidden></b></a>
+      <a href="#loja" data-tab="loja"><svg class="ico" aria-hidden="true"><use href="#i-store"/></svg><span>Loja</span></a>
+    </nav>
+    <div class="side-foot">
+      <p class="me"><b data-me-nome></b><span data-me-papel></span></p>
+      <button class="btn btn-line btn-sm" type="button" data-sair><svg class="ico" aria-hidden="true"><use href="#i-out"/></svg>Sair</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="bar">
+      <h1 class="bar-h" data-titulo>Painel</h1>
+      <div class="bar-tools">
+        <span class="live" data-live title="Conexão com os pedidos"><i></i><span data-live-txt>Conectando…</span></span>
+        <button class="icon-btn" type="button" data-som aria-pressed="false" title="Som de pedido novo"><svg class="ico" aria-hidden="true"><use href="#i-bell-off"/></svg><span class="sr" data-som-txt>Ligar o som de pedido novo</span></button>
+        <button class="icon-btn" type="button" data-recarregar title="Atualizar agora"><svg class="ico" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr">Atualizar agora</span></button>
+      </div>
+    </header>
+
+    <div class="filters" data-filtros>
+      <div class="periods" role="group" aria-label="Período">
+        <button type="button" data-p="hoje" aria-pressed="true">Hoje</button>
+        <button type="button" data-p="7" aria-pressed="false">7 dias</button>
+        <button type="button" data-p="30" aria-pressed="false">30 dias</button>
+        <button type="button" data-p="tudo" aria-pressed="false">Tudo</button>
+        <button type="button" data-p="datas" aria-pressed="false">Datas</button>
+      </div>
+      <div class="dates" data-datas hidden>
+        <label>De <input class="input" type="date" data-de></label>
+        <label>Até <input class="input" type="date" data-ate></label>
+      </div>
+      <label class="check"><input type="checkbox" data-testes><span>Mostrar testes</span></label>
+    </div>
+
+    <!-- painel -->
+    <section class="view" data-tab-view="painel" aria-labelledby="h-painel">
+      <h2 class="sr" id="h-painel">Resumo</h2>
+      <div class="kpis" data-kpis>
+        <button type="button" class="kpi" data-k="recebidos" data-filtro=""><span>Recebidos</span><b>–</b></button>
+        <button type="button" class="kpi k-novo" data-k="novos" data-filtro="novo"><span>Novos aguardando</span><b>–</b></button>
+        <button type="button" class="kpi k-preparo" data-k="em_preparo" data-filtro="confirmado,em_preparo"><span>Em preparação</span><b>–</b></button>
+        <button type="button" class="kpi k-pronto" data-k="prontos" data-filtro="pronto_retirada,saiu_entrega"><span>Prontos / em entrega</span><b>–</b></button>
+        <button type="button" class="kpi k-ok" data-k="concluidos" data-filtro="concluido"><span>Concluídos</span><b>–</b></button>
+        <button type="button" class="kpi k-x" data-k="cancelados" data-filtro="cancelado"><span>Cancelados</span><b>–</b></button>
+      </div>
+      <p class="money"><span>Vendido (concluídos): <b class="num" data-k="valor_concluidos_centavos">–</b></span><span>Em aberto: <b class="num" data-k="valor_abertos_centavos">–</b></span></p>
+      <div class="block">
+        <div class="block-head"><h3>Pedidos recentes</h3><a class="link" href="#pedidos" data-tab-link="pedidos">Ver todos</a></div>
+        <ul class="orders" data-recentes></ul>
+      </div>
+    </section>
+
+    <!-- pedidos -->
+    <section class="view" data-tab-view="pedidos" aria-labelledby="h-pedidos" hidden>
+      <h2 class="sr" id="h-pedidos">Lista de pedidos</h2>
+      <div class="list-tools">
+        <label class="search"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><span class="sr">Buscar</span><input class="input" type="search" data-busca placeholder="Buscar por número, nome ou telefone" autocomplete="off"></label>
+        <div class="chips" role="group" aria-label="Filtrar por status" data-status-chips>
+          <button type="button" data-s="" aria-pressed="true">Todos</button>
+          <button type="button" data-s="novo" aria-pressed="false">Novos</button>
+          <button type="button" data-s="confirmado" aria-pressed="false">Confirmados</button>
+          <button type="button" data-s="em_preparo" aria-pressed="false">Em preparo</button>
+          <button type="button" data-s="pronto_retirada,saiu_entrega" aria-pressed="false">Prontos / entrega</button>
+          <button type="button" data-s="concluido" aria-pressed="false">Concluídos</button>
+          <button type="button" data-s="cancelado" aria-pressed="false">Cancelados</button>
+        </div>
+      </div>
+      <p class="count muted" data-contagem aria-live="polite"></p>
+      <ul class="orders" data-lista></ul>
+      <button class="btn btn-line more" type="button" data-mais hidden>Carregar mais</button>
+    </section>
+
+    <!-- loja -->
+    <section class="view" data-tab-view="loja" aria-labelledby="h-loja" hidden>
+      <h2 class="sr" id="h-loja">Configurações da loja</h2>
+      <form class="card cfg" data-cfg novalidate>
+        <p class="note" data-cfg-so-dono hidden>Só o dono da loja pode mudar estas configurações.</p>
+        <label class="switch"><input type="checkbox" name="aceitando_pedidos"><span><b>Recebendo pedidos pelo site</b><small>Desligado: o site manda o cliente para o WhatsApp.</small></span></label>
+        <div class="field"><label for="c-msg">Aviso quando estiver pausado <span class="muted">(opcional)</span></label><input class="input" id="c-msg" name="mensagem_pausa" maxlength="200" placeholder="Ex.: Voltamos amanhã às 9h"></div>
+        <div class="grid2">
+          <div class="field"><label for="c-taxa">Taxa de entrega (R$)</label><input class="input num" id="c-taxa" name="taxa" inputmode="decimal" placeholder="Vazio = a combinar"></div>
+          <div class="field"><label for="c-min">Pedido mínimo (R$)</label><input class="input num" id="c-min" name="minimo" inputmode="decimal" placeholder="0"></div>
+        </div>
+        <div class="field"><label for="c-pag">Formas de pagamento (uma por linha)</label><textarea class="input" id="c-pag" name="pagamentos" rows="4"></textarea></div>
+        <p class="alert" data-cfg-err role="alert" hidden></p>
+        <p class="ok-msg" data-cfg-ok role="status" hidden>Salvo.</p>
+        <button class="btn" type="submit" data-cfg-btn>Salvar</button>
+      </form>
+      <div class="card danger" data-testes-box>
+        <h3>Pedidos de teste</h3>
+        <p class="muted">Pedidos feitos no computador de desenvolvimento ou com <code>?teste=1</code> no endereço do site ficam marcados como teste e não entram nos números. Aqui o dono apaga todos eles de uma vez (os pedidos reais não são tocados).</p>
+        <button class="btn btn-red btn-sm" type="button" data-apagar-testes>Apagar pedidos de teste</button>
+        <p class="muted" data-apagar-msg role="status"></p>
+      </div>
+    </section>
+  </div>
+
+  <!-- detalhe do pedido -->
+  <div class="sheet-bg" data-sheet-bg hidden></div>
+  <section class="sheet" data-sheet role="dialog" aria-modal="true" aria-labelledby="d-h" hidden tabindex="-1">
+    <header class="sheet-head">
+      <button class="icon-btn" type="button" data-fechar title="Fechar"><svg class="ico" aria-hidden="true"><use href="#i-left"/></svg><span class="sr">Fechar</span></button>
+      <h2 id="d-h">Pedido <span class="num" data-d-num></span></h2>
+      <span class="st" data-d-st></span>
+    </header>
+    <div class="sheet-body" data-d-body></div>
+  </section>
+
+  <div class="toasts" data-toasts aria-live="assertive"></div>
+</div>
+
+<p class="center muted" data-v="carregando">Carregando…</p>
+
+<script src="../assets/config.js?v=1"></script>
+<script src="vendor/supabase-2.116.0.js"></script>
+<script src="admin.js?v=1"></script>
+</body>
+</html>

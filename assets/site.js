@@ -350,6 +350,7 @@
   /* ---------- o pedido ---------- */
   const KEY = 'cx-pedido';
   let cart = [];
+  let chaveEnvio = null;   // identifica uma tentativa de envio: repetir o envio não duplica o pedido
   try { cart = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { cart = []; }
   cart = Array.isArray(cart) ? cart.filter(i => i && catalog.has(i.id) && i.qtd > 0).map(i => ({ id: i.id, qtd: Math.min(99, Math.floor(i.qtd)) })) : [];
   const items = () => cart.map(i => ({ ...catalog.get(i.id), id: i.id, qtd: i.qtd }));
@@ -362,6 +363,7 @@
     const it = cart.find(i => i.id === id);
     q = Math.max(0, Math.min(99, q));
     if (it) { if (q) it.qtd = q; else cart = cart.filter(i => i !== it); } else if (q) cart.push({ id, qtd: q });
+    chaveEnvio = null;
     save(); render();
   }
 
@@ -457,9 +459,13 @@
       add.hidden = q > 0; ctl.hidden = q === 0;
       $('output', ctl).textContent = q;
     });
-    $('[data-empty]', dlg).hidden = n > 0;
-    $$('[data-filled]', dlg).forEach(el => { el.hidden = n === 0; });
+    $('[data-empty]', dlg).hidden = n > 0 || !!feito;
+    $$('[data-filled]', dlg).forEach(el => { el.hidden = n === 0 || !!feito; });
+    lines.hidden = !!feito;
+    $('.clear-row', dlg).hidden = n === 0 || !!feito;
+    $('[data-done]', dlg).hidden = !feito;
     $('[data-flav-pick]', dlg).hidden = !needsFlavors();
+    if (n) { preencheCliente(); renderResumo(); }
     const a = document.activeElement;
     const focusId = dlg.contains(a) && a.closest('li') ? a.closest('li').dataset.id + (a.hasAttribute('data-inc') ? '+' : '-') : null;
     lines.innerHTML = '';
@@ -519,39 +525,312 @@
     }));
   });
 
-  const openCart = () => { render(); openDlg(dlg); };
+  const openCart = () => { render(); openDlg(dlg); avisoLoja(); carregarLoja(); };
   $$('[data-open-cart]').forEach(b => b.addEventListener('click', openCart));
   orderCta.addEventListener('click', e => { if (count() > 0) { e.preventDefault(); setMenu(false); openCart(); } });
   $('[data-clear]', dlg).addEventListener('click', () => {
-    cart = []; save(); form.reset(); render(); say('Pedido limpo.');
+    cart = []; chaveEnvio = null; save(); form.reset(); preenchido = false; Object.keys(campos).forEach(k => marca(k, null)); limpaErro();
+    syncModalidade(); syncPagamento(); render(); say('Pedido limpo.');
     $('[data-close]', dlg).focus();
   });
 
+  /* ---------- envio do pedido ----------
+     Com o banco configurado (assets/config.js), o pedido é gravado e ganha número na hora; o preço que vale é
+     o do banco. Sem banco, ou se ele falhar, o pedido vai pronto para o WhatsApp da loja, como antes. */
+  const CX = window.COXITAS || {};
+  const API = CX.supabaseUrl && CX.supabaseChave ? { url: String(CX.supabaseUrl).replace(/\/+$/, ''), chave: CX.supabaseChave } : null;
+  // pedido feito no computador de quem cuida do site (ou com ?teste=1 no endereço) fica marcado como teste no painel
+  const TESTE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || /[?&]teste=1(&|$)/.test(location.search);
+  async function api(fn, args) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 15000);
+    let r;
+    try {
+      r = await fetch(`${API.url}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: API.chave, Authorization: `Bearer ${API.chave}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args || {}), signal: ctl.signal });
+    } catch (e) {
+      throw { rede: true };
+    } finally { clearTimeout(timer); }
+    const body = await r.json().catch(() => null);
+    if (!r.ok) throw { code: body && body.message, detalhe: body && body.details, status: r.status };
+    return body;
+  }
+
+  const submitBtn = $('[data-submit]', dlg);
+  const waFallback = $('[data-wa-fallback]', dlg);
+  const formErr = $('[data-form-err]', dlg);
+  const PAG_PADRAO = $$('input[name=pagamento]', form).map(i => i.value);
+  let loja = { aceitando_pedidos: true, mensagem_pausa: null, taxa_entrega_centavos: null, pedido_minimo_centavos: 0, pagamentos: PAG_PADRAO };
+  let lojaEm = 0, feito = null, enviando = false;
+  const modalidade = () => { const r = $('input[name=modalidade]:checked', form); return r ? r.value : 'entrega'; };
+  const pagSel = () => { const r = $('input[name=pagamento]:checked', form); return r ? r.value : ''; };
+  const usaBanco = () => !!API && loja.aceitando_pedidos !== false;
+  const taxaAtual = () => (modalidade() === 'retirada' ? 0 : loja.taxa_entrega_centavos);   // null = a combinar
+
+  async function carregarLoja() {
+    if (!API || Date.now() - lojaEm < 120000) return;
+    try {
+      const c = await api('config_publica');
+      if (c) { loja = { ...loja, ...c }; lojaEm = Date.now(); montaPagamentos(); renderResumo(); avisoLoja(); }
+    } catch (e) { /* sem resposta: segue com o padrão; o envio avisa se der erro */ }
+  }
+  function montaPagamentos() {
+    const box = $('[data-pay-opts]', form);
+    const lista = loja.pagamentos && loja.pagamentos.length ? loja.pagamentos : PAG_PADRAO;
+    if (lista.join('|') === $$('input', box).map(i => i.value).join('|')) return;
+    const atual = pagSel();
+    box.innerHTML = '';
+    lista.forEach(v => {
+      const l = document.createElement('label');
+      const i = document.createElement('input'); i.type = 'radio'; i.name = 'pagamento'; i.value = v; i.checked = v === atual;
+      const sp = document.createElement('span'); sp.textContent = v;
+      l.append(i, sp); box.appendChild(l);
+    });
+    syncPagamento();
+  }
+  function renderResumo() {
+    const sub = total(), tx = taxaAtual();
+    $('[data-sum-sub]', dlg).textContent = fmt(sub);
+    $('[data-sum-fee]', dlg).textContent = modalidade() === 'retirada' ? 'grátis (retirada)' : tx == null ? 'a combinar' : tx === 0 ? 'grátis' : fmt(tx);
+    $('[data-sum-total]', dlg).textContent = fmt(sub + (tx || 0));
+    $('[data-total-note]', dlg).textContent = tx == null
+      ? 'Entrega a combinar com a Coxitas (o total é só dos itens). Você paga na entrega.'
+      : `Você paga ${modalidade() === 'retirada' ? 'na retirada' : 'na entrega'}.`;
+  }
+  function avisoLoja() {
+    const el = $('[data-order-alert]', form);
+    let txt = '', stop = false;
+    if (API && loja.aceitando_pedidos === false) {
+      txt = `Os pedidos pelo site estão pausados agora${loja.mensagem_pausa ? `: ${loja.mensagem_pausa}` : '.'} Você ainda pode mandar o pedido pelo WhatsApp.`;
+      stop = true;
+    } else {
+      let st = null;
+      try { st = situacao(); } catch (e) {}
+      if (st && !st.aberto) txt = `${st.texto}. Pode mandar o pedido agora: a Coxitas vê assim que abrir.`;
+    }
+    el.textContent = txt; el.hidden = !txt; el.classList.toggle('is-stop', stop);
+    modoEnvio();
+  }
+  function modoEnvio() {
+    const banco = usaBanco();
+    $('[data-submit-label]', dlg).textContent = enviando ? 'Enviando…' : banco ? 'Confirmar pedido' : 'Enviar pedido pelo WhatsApp';
+    $('use', submitBtn).setAttribute('href', banco ? '#i-check' : '#i-wa');
+    submitBtn.classList.toggle('btn-wa', !banco);
+  }
+  function syncModalidade() {
+    const ent = modalidade() === 'entrega';
+    $('[data-end-field]', form).hidden = !ent;
+    $('[data-pickup-note]', form).hidden = ent;
+    if (!ent) marca('endereco', null);
+    renderResumo();
+  }
+  function syncPagamento() {
+    const din = /^dinheiro/i.test(pagSel());
+    $('[data-troco]', form).hidden = !din;
+    if (!din) marca('troco', null);
+  }
+
+  // telefone: aceita com ou sem +55, parênteses, espaço e traço; guarda só os dígitos com DDD
+  const digitos = v => String(v || '').replace(/\D/g, '');
+  function telNormal(v) { let d = digitos(v); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d.replace(/^0+/, ''); }
+  const telOk = d => /^[1-9][0-9]9?[0-9]{8}$/.test(d);
+  const telBonito = d => (d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d);
+  form.telefone.addEventListener('blur', () => { const d = telNormal(form.telefone.value); if (telOk(d)) form.telefone.value = telBonito(d); });
+
+  const campos = { nome: [form.nome, $('#e-nome')], telefone: [form.telefone, $('#e-tel')], endereco: [form.endereco, $('#e-end')], pagamento: [$('.pay', form), $('#e-pag')], troco: [form.troco, $('#e-troco')] };
+  function marca(nome, msg) {
+    const [el, err] = campos[nome];
+    if (msg) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
+    err.textContent = msg || ''; err.hidden = !msg;
+  }
+  function valida() {
+    const e = {};
+    const nome = form.nome.value.trim().replace(/\s+/g, ' ');
+    if (nome.length < 2) e.nome = 'Escreva o seu nome.';
+    const tel = telNormal(form.telefone.value);
+    if (!telOk(tel)) e.telefone = 'Confira o telefone com DDD, por exemplo (17) 99999-9999.';
+    const end = form.endereco.value.trim().replace(/\s+/g, ' ');
+    if (modalidade() === 'entrega' && end.length < 5) e.endereco = 'Escreva o endereço com rua, número e bairro.';
+    const pag = pagSel();
+    if (!pag) e.pagamento = 'Escolha como vai pagar.';
+    let troco = null;
+    if (/^dinheiro/i.test(pag) && form.troco.value.trim()) {
+      troco = toCents(form.troco.value);
+      if (!(troco > 0) || troco > 1000000) e.troco = 'Escreva só o valor, por exemplo 100.';
+    }
+    Object.keys(campos).forEach(k => marca(k, e[k]));
+    const primeiro = Object.keys(campos).find(k => e[k]);
+    if (primeiro) {
+      const el = campos[primeiro][0];
+      (el.tagName === 'FIELDSET' ? $('input', el) : el).focus();
+      say(e[primeiro]);
+      return null;
+    }
+    return { nome, tel, end: modalidade() === 'entrega' ? end : '', pag, troco: /^dinheiro/i.test(pag) ? troco : null, obs: form.obs.value.trim() };
+  }
+  form.addEventListener('input', e => { const k = e.target.name; if (k && campos[k] && e.target.getAttribute('aria-invalid')) marca(k, null); });
+  form.addEventListener('change', e => {
+    if (e.target.name === 'modalidade') syncModalidade();
+    if (e.target.name === 'pagamento') { marca('pagamento', null); syncPagamento(); }
+  });
+
+  // a pessoa não precisa digitar tudo de novo no próximo pedido (fica só neste aparelho)
+  const CLI = 'cx-cliente';
+  let preenchido = false;
+  function preencheCliente() {
+    if (preenchido) return;
+    preenchido = true;
+    try {
+      const c = JSON.parse(localStorage.getItem(CLI) || 'null');
+      if (!c) return;
+      if (!form.nome.value && c.nome) form.nome.value = c.nome;
+      if (!form.telefone.value && c.tel) form.telefone.value = telBonito(c.tel);
+      if (!form.endereco.value && c.end) form.endereco.value = c.end;
+    } catch (e) {}
+  }
+  function guardaCliente(v) { try { localStorage.setItem(CLI, JSON.stringify({ nome: v.nome, tel: v.tel, end: v.end || '' })); } catch (e) {} }
+  function guardaPedido(r) {
+    try {
+      const l = JSON.parse(localStorage.getItem('cx-meus-pedidos') || '[]').filter(x => x && x.n !== r.numero);
+      l.unshift({ n: r.numero, c: r.codigo, t: r.criado_em });
+      localStorage.setItem('cx-meus-pedidos', JSON.stringify(l.slice(0, 5)));
+    } catch (e) {}
+  }
+
+  // foto do pedido na hora do envio (o carrinho é limpo depois que o pedido é gravado)
+  function retrato(v) {
+    return { itens: items(), sabores: needsFlavors() ? $$('input[name=sabor]:checked', form).map(c => c.value) : [], sub: total(), taxa: taxaAtual(), mod: modalidade(), ...v };
+  }
   // a mensagem que chega no WhatsApp da Coxitas
-  function pedidoTexto() {
-    const L = ['Olá, Coxitas! Quero fazer um pedido pelo site:', ''];
-    items().forEach(i => {
+  function pedidoTexto(o, numero) {
+    const L = [numero ? `Olá, Coxitas! Fiz o pedido nº ${numero} pelo site:` : 'Olá, Coxitas! Quero fazer um pedido pelo site:', ''];
+    o.itens.forEach(i => {
       L.push(`• ${i.qtd}x ${i.nome}: ${fmtTxt(i.preco * i.qtd)}`);
       L.push(`   ${i.detalhe}${i.qtd > 1 ? ` (${fmtTxt(i.preco)} cada)` : ''}`);
     });
-    const sabores = $$('input[name=sabor]:checked', form).map(c => c.value);
-    if (sabores.length && needsFlavors()) L.push('', `Sabores preferidos: ${sabores.join(', ')}`);
-    L.push('', `*Total dos itens: ${fmtTxt(total())}*`);
-    const nome = form.nome.value.trim(), end = form.endereco.value.trim(), obs = form.obs.value.trim();
-    if (nome || end || obs) L.push('');
-    if (nome) L.push(`Nome: ${nome}`);
-    if (end) L.push(`Endereço de entrega: ${end}`);
-    if (obs) L.push(`Observação: ${obs}`);
+    if (o.sabores.length) L.push('', `Sabores preferidos: ${o.sabores.join(', ')}`);
+    L.push('', `Itens: ${fmtTxt(o.sub)}`);
+    L.push(o.mod === 'retirada' ? 'Retirada na loja' : `Entrega: ${o.taxa == null ? 'a combinar' : o.taxa === 0 ? 'grátis' : fmtTxt(o.taxa)}`);
+    L.push(`*Total: ${fmtTxt(o.sub + (o.taxa || 0))}${o.mod === 'entrega' && o.taxa == null ? ' + entrega' : ''}*`, '');
+    if (o.nome) L.push(`Nome: ${o.nome}`);
+    if (o.tel) L.push(`Telefone: ${telBonito(o.tel)}`);
+    if (o.mod === 'entrega' && o.end) L.push(`Endereço de entrega: ${o.end}`);
+    if (o.pag) L.push(`Pagamento: ${o.pag}${o.troco ? ` (troco para ${fmtTxt(o.troco)})` : ''}`);
+    if (o.obs) L.push(`Observação: ${o.obs}`);
     return L.join('\n');
   }
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    if (!count()) return;
-    const url = waURL(pedidoTexto());
+  function enviaWhats(o) {
+    const url = waURL(pedidoTexto(o));
     $('[data-sent-link]', dlg).href = url;
     sent.hidden = false;
     window.open(url, '_blank', 'noopener');
+  }
+
+  const ERROS = {
+    loja_pausada: d => `Os pedidos pelo site estão pausados agora${d ? `: ${d}` : ''}. Mande pelo WhatsApp.`,
+    nome_invalido: 'Confira o seu nome.',
+    telefone_invalido: 'Confira o telefone com DDD.',
+    endereco_invalido: 'Confira o endereço de entrega.',
+    pagamento_invalido: 'Essa forma de pagamento não está disponível agora. Escolha outra.',
+    troco_invalido: 'Confira o valor do troco.',
+    sabor_invalido: 'Algum sabor escolhido não está disponível. Confira os sabores.',
+    produto_indisponivel: 'Um item do pedido não está mais disponível. Tire ele do pedido e tente de novo.',
+    itens_invalidos: 'Confira as quantidades do pedido (até 50 de cada item).',
+    abaixo_do_minimo: d => `O pedido mínimo pelo site é ${fmt(+d || 0)}.`,
+    muitos_pedidos: 'Recebemos muitos pedidos deste telefone há pouco. Fale com a Coxitas pelo WhatsApp.',
+    observacao_longa: 'A observação ficou longa demais (até 500 letras).',
+  };
+  function mostraErro(err, o) {
+    const f = err && ERROS[err.code];
+    formErr.textContent = err && err.rede
+      ? 'Não conseguimos falar com a Coxitas agora (sem conexão). Tente de novo em instantes ou mande pelo WhatsApp.'
+      : f ? (typeof f === 'function' ? f(err.detalhe) : f) : 'Não conseguimos registrar o pedido agora. Tente de novo ou mande pelo WhatsApp.';
+    formErr.hidden = false;
+    waFallback.href = waURL(pedidoTexto(o));
+    waFallback.hidden = false;
+    say(formErr.textContent);
+    if (err && (err.code === 'pagamento_invalido' || err.code === 'loja_pausada')) { lojaEm = 0; carregarLoja(); }
+  }
+  function limpaErro() { formErr.hidden = true; waFallback.hidden = true; }
+  waFallback.addEventListener('click', () => { sent.hidden = false; $('[data-sent-link]', dlg).href = waFallback.href; });
+
+  function novaChave() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+    const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!count() || enviando) return;
+    limpaErro();
+    sent.hidden = true;
+    const v = valida();
+    if (!v) return;
+    const o = retrato(v);
+    if (!usaBanco()) { enviaWhats(o); guardaCliente(v); return; }
+    enviando = true;
+    submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); modoEnvio();
+    chaveEnvio = chaveEnvio || novaChave();
+    try {
+      const r = await api('criar_pedido', { p: {
+        chave: chaveEnvio, nome: v.nome, telefone: v.tel, modalidade: o.mod, endereco: v.end || null, pagamento: v.pag,
+        troco_para_centavos: v.troco, observacao: v.obs, sabores: o.sabores, itens: cart.map(i => ({ id: i.id, qtd: i.qtd })), teste: TESTE,
+      } });
+      guardaPedido(r); guardaCliente(v);
+      feito = { ...o, ...r };
+      cart = []; chaveEnvio = null; save();
+      form.reset(); preenchido = false; syncModalidade(); syncPagamento();
+      mostraFeito(feito);
+    } catch (err) {
+      mostraErro(err, o);
+    } finally {
+      enviando = false;
+      submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); modoEnvio();
+    }
   });
+
+  // tela de pedido confirmado: número, resumo e o link para acompanhar
+  function mostraFeito(p) {
+    const box = $('[data-done]', dlg);
+    const el = (tag, cls, txt) => { const x = document.createElement(tag); if (cls) x.className = cls; if (txt != null) x.textContent = txt; return x; };
+    box.innerHTML = '';
+    const badge = el('span', 'done-badge'); badge.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>';
+    const h = el('h3'); h.id = 'done-h'; h.append('Pedido ', el('b', null, `nº ${p.numero}`), ' recebido');
+    const sub = el('p', 'done-sub', p.repetido
+      ? 'Esse pedido já tinha chegado: é o mesmo, não foi duplicado.'
+      : 'Seu pedido já está com a Coxitas. Guarde o número: é por ele que a loja te atende.');
+    const caixa = el('div', 'done-box');
+    const ul = el('ul');
+    p.itens.forEach(i => { const li = el('li'); li.append(el('span', null, `${i.qtd}x ${i.nome} · ${i.detalhe}`), el('span', null, fmt(i.preco * i.qtd))); ul.appendChild(li); });
+    const meta = el('div', 'done-meta');
+    const linha = (rot, val) => { const d = el('p'); d.append(`${rot}: `, el('b', null, val)); meta.appendChild(d); };
+    linha('Total', `${fmt(p.total_centavos)}${p.mod === 'entrega' && p.taxa_entrega_centavos == null ? ' + entrega (a combinar)' : ''}`);
+    linha('Recebimento', p.mod === 'retirada' ? 'retirada na loja' : 'entrega');
+    linha('Pagamento', `${p.pag}${p.troco ? ` (troco para ${fmt(p.troco)})` : ''}`);
+    if (p.sabores.length) linha('Sabores', p.sabores.join(', '));
+    caixa.append(ul, meta);
+    const acoes = el('div', 'done-actions');
+    const acomp = el('a', 'btn btn-lg', 'Acompanhar o pedido');
+    acomp.href = `pedido/?n=${encodeURIComponent(p.numero)}&c=${encodeURIComponent(p.codigo)}`;
+    const zap = el('a', 'btn btn-lg btn-wa');
+    zap.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg>';
+    zap.append('Avisar a Coxitas no WhatsApp');
+    zap.href = waURL(pedidoTexto(p, p.numero)); zap.target = '_blank'; zap.rel = 'noopener';
+    const outro = el('button', 'link-btn', 'Fazer outro pedido'); outro.type = 'button';
+    outro.addEventListener('click', () => { feito = null; render(); closeDlg(dlg, () => { const c = document.getElementById('cardapio'); if (c) c.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth' }); }); });
+    acoes.append(acomp, zap, outro);
+    const nota = el('p', 'done-note', TESTE
+      ? 'Pedido de teste (feito no computador de desenvolvimento ou com ?teste=1): no painel ele só aparece com "Mostrar testes".'
+      : 'A Coxitas confirma o pedido com você pelo telefone ou WhatsApp que você deixou.');
+    box.append(badge, h, sub, caixa, acoes, nota);
+    render();
+    $('.drawer-body', dlg).scrollTop = 0;
+    box.focus({ preventScroll: true });
+    say(`Pedido número ${p.numero} recebido.`);
+  }
+  dlg.addEventListener('close', () => { if (feito) { feito = null; render(); } });
 
   /* ---------- galeria: foto ampliada ---------- */
   const lb = $('#lightbox');

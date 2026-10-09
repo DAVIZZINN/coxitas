@@ -1,0 +1,49 @@
+/* Coxitas · acompanhar pedido */
+.wrap{width:min(640px,100% - 32px);margin:0 auto;padding:28px 0 calc(48px + env(safe-area-inset-bottom))}
+.find{display:grid;gap:14px;padding:clamp(20px,5vw,30px)}
+.find-form{display:grid;gap:14px;margin-top:6px}
+@media (min-width:520px){.find-form{grid-template-columns:1fr 1fr}.find-form .alert,.find-form .btn{grid-column:1/-1}}
+.mine{margin-top:8px;padding-top:16px;border-top:1px dashed var(--line-strong)}
+.mine h2{font:700 14px/1.2 var(--f-text);color:var(--text-2);margin-bottom:10px}
+.mine li a{display:flex;justify-content:space-between;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line);color:var(--cream);text-decoration:none;font-weight:600}
+.mine li a:hover{color:var(--gold)}
+.mine li span{color:var(--text-3);font-weight:500}
+
+.ped{display:grid;gap:18px}
+.ped-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
+.ped-head .st{font-size:14px;padding:7px 13px 7px 11px}
+.ped-msg{color:var(--text-2);font-size:16px;line-height:1.5}
+.cancel{display:flex;gap:10px;align-items:flex-start;padding:14px;border-radius:14px;background:rgba(232,96,74,.12);border:1px solid rgba(232,96,74,.38);color:#FFD3C9}
+.cancel .ico{margin-top:2px;color:var(--red)}
+
+/* linha do tempo */
+.steps{position:relative;display:grid;gap:0;padding:4px 0}
+.steps li{position:relative;display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:12px;padding:10px 0;color:var(--text-3)}
+.steps li::before{content:"";position:absolute;left:14px;top:-50%;bottom:50%;width:2px;background:var(--line-strong)}
+.steps li:first-child::before{display:none}
+.steps .dot{position:relative;z-index:1;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:2px solid var(--line-strong);background:var(--bg)}
+.steps .dot .ico{width:15px;height:15px;opacity:0}
+.steps b{font:700 15.5px/1.25 var(--f-text)}
+.steps time{font-size:13.5px;font-variant-numeric:tabular-nums}
+.steps li.ok{color:var(--cream)}
+.steps li.ok::before{background:var(--orange)}
+.steps li.ok .dot{border-color:var(--orange);background:var(--orange);color:var(--ink)}
+.steps li.ok .dot .ico{opacity:1}
+.steps li.atual .dot{box-shadow:0 0 0 6px rgba(242,120,42,.18)}
+.steps li.atual b{color:var(--gold)}
+
+.box{padding:18px}
+.box h2{font:700 14px/1.2 var(--f-text);color:var(--text-2);margin-bottom:8px}
+.items li{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.items li span:first-child{color:var(--text-2)}
+.items li b{color:var(--cream);font-weight:700}
+.items .num{white-space:nowrap}
+.tot{display:grid;gap:6px;margin-top:12px}
+.tot div{display:flex;justify-content:space-between;gap:12px;color:var(--text-2);font-size:15px}
+.tot dd{margin:0;font-variant-numeric:tabular-nums;text-align:right}
+.tot .grand{padding-top:8px;border-top:1px dashed var(--line-strong);color:var(--cream);font-weight:700}
+.tot .grand dd{font:600 22px/1 var(--f-display);font-variation-settings:'SOFT' 100;color:var(--gold)}
+.ped-actions{display:grid;gap:12px;justify-items:center}
+.ped-actions .btn{width:100%}
+.small{font-size:13px;text-align:center}
+.loading{padding:40px 0;text-align:center}

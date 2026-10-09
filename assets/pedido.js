@@ -1,0 +1,169 @@
+/* Coxitas · acompanhar pedido. Mostra só o andamento e os itens: nada de telefone, endereço ou nome completo. */
+(() => {
+  'use strict';
+  const WHATSAPP = '5517996433594';
+  const $ = (s, r = document) => r.querySelector(s);
+  const CX = window.COXITAS || {};
+  const API = CX.supabaseUrl && CX.supabaseChave ? { url: String(CX.supabaseUrl).replace(/\/+$/, ''), chave: CX.supabaseChave } : null;
+
+  const NOME = { novo: 'Recebido', confirmado: 'Confirmado', em_preparo: 'Em preparo', saiu_entrega: 'Saiu para entrega', pronto_retirada: 'Pronto para retirada', concluido: 'Concluído', cancelado: 'Cancelado' };
+  const MSG = {
+    novo: 'A Coxitas recebeu o seu pedido e vai confirmar em instantes.',
+    confirmado: 'Pedido confirmado! Logo ele entra no preparo.',
+    em_preparo: 'Seu pedido está sendo preparado agora.',
+    saiu_entrega: 'Seu pedido saiu para entrega. Logo chega aí!',
+    pronto_retirada: 'Seu pedido está pronto. Pode vir buscar na loja.',
+    concluido: m => (m === 'retirada' ? 'Pedido retirado. Bom apetite!' : 'Pedido entregue. Bom apetite!'),
+    cancelado: 'Este pedido foi cancelado.',
+  };
+  const fmt = c => { const [r, d] = (Math.abs(c) / 100).toFixed(2).split('.'); return 'R$ ' + r.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d; };
+  const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
+  const quando = iso => { const d = new Date(iso); return `${dia.format(d)} às ${hora.format(d)}`; };
+
+  async function api(fn, args) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 15000);
+    let r;
+    try {
+      r = await fetch(`${API.url}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: API.chave, Authorization: `Bearer ${API.chave}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args), signal: ctl.signal });
+    } catch (e) { throw { rede: true }; } finally { clearTimeout(t); }
+    const body = await r.json().catch(() => null);
+    if (!r.ok) throw { code: body && body.message };
+    return body;
+  }
+
+  const find = $('[data-find]'), ped = $('[data-ped]'), loading = $('[data-loading]');
+  const findForm = $('[data-find-form]'), findErr = $('[data-find-err]'), findBtn = $('[data-find-btn]');
+  let atual = null, timer = 0;
+
+  function meus() { try { return JSON.parse(localStorage.getItem('cx-meus-pedidos') || '[]').filter(x => x && x.n && x.c); } catch (e) { return []; } }
+  function guarda(p) {
+    try {
+      const l = meus().filter(x => x.n !== p.numero);
+      l.unshift({ n: p.numero, c: p.codigo, t: p.criado_em });
+      localStorage.setItem('cx-meus-pedidos', JSON.stringify(l.slice(0, 5)));
+    } catch (e) {}
+  }
+
+  function mostraBusca(msg) {
+    clearTimeout(timer);
+    ped.hidden = true; loading.hidden = true; find.hidden = false;
+    const l = meus(), lista = $('[data-mine-list]');
+    lista.innerHTML = '';
+    l.forEach(x => {
+      const li = document.createElement('li'), a = document.createElement('a');
+      a.href = `?n=${encodeURIComponent(x.n)}&c=${encodeURIComponent(x.c)}`;
+      const b = document.createElement('span'); b.textContent = x.t ? quando(x.t) : '';
+      a.append(`Pedido nº ${x.n}`, b);
+      li.appendChild(a); lista.appendChild(li);
+    });
+    $('[data-mine]').hidden = !l.length;
+    if (msg) { findErr.textContent = msg; findErr.hidden = false; }
+  }
+
+  function el(tag, cls, txt) { const x = document.createElement(tag); if (cls) x.className = cls; if (txt != null) x.textContent = txt; return x; }
+
+  function mostra(p) {
+    atual = p;
+    find.hidden = true; loading.hidden = true; ped.hidden = false;
+    document.title = `Pedido nº ${p.numero} · ${NOME[p.status] || ''} · Coxitas`;
+    $('[data-ped-num]').textContent = `nº ${p.numero}`;
+    $('[data-ped-when]').textContent = `Feito em ${quando(p.criado_em)}${p.primeiro_nome ? ` · ${p.primeiro_nome}` : ''}${p.teste ? ' · teste' : ''}`;
+    const st = $('[data-ped-st]');
+    st.className = `st st-${p.status}`;
+    st.textContent = p.status === 'concluido' ? (p.modalidade === 'retirada' ? 'Retirado' : 'Entregue') : NOME[p.status];
+    const m = MSG[p.status];
+    $('[data-ped-msg]').textContent = typeof m === 'function' ? m(p.modalidade) : m;
+    $('[data-ped-cancel]').hidden = p.status !== 'cancelado';
+
+    // linha do tempo: os passos do tipo de pedido, com o horário de cada um
+    const passos = ['novo', 'confirmado', 'em_preparo', p.modalidade === 'retirada' ? 'pronto_retirada' : 'saiu_entrega', 'concluido'];
+    const horas = {};
+    (p.eventos || []).forEach(e => { horas[e.status] = e.criado_em; });
+    const idx = passos.indexOf(p.status);
+    const ol = $('[data-steps]');
+    ol.innerHTML = '';
+    ol.hidden = p.status === 'cancelado';
+    passos.forEach((s, i) => {
+      const li = el('li', i <= idx ? 'ok' : '');
+      if (i === idx) { li.classList.add('atual'); li.setAttribute('aria-current', 'step'); }
+      const dot = el('span', 'dot'); dot.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>';
+      const nome = s === 'concluido' ? (p.modalidade === 'retirada' ? 'Retirado' : 'Entregue') : NOME[s];
+      const b = el('b', null, nome);
+      const t = el('time', null, horas[s] ? hora.format(new Date(horas[s])) : '');
+      if (horas[s]) t.dateTime = horas[s];
+      li.append(dot, b, t);
+      ol.appendChild(li);
+    });
+
+    const ul = $('[data-items]');
+    ul.innerHTML = '';
+    (p.itens || []).forEach(i => {
+      const li = el('li');
+      const a = el('span'); a.append(el('b', null, `${i.quantidade}x ${i.nome}`), ` · ${i.detalhe}`);
+      li.append(a, el('span', 'num', fmt(i.total_centavos)));
+      ul.appendChild(li);
+    });
+    if (p.sabores && p.sabores.length) { const li = el('li'); li.append(el('span', null, `Sabores: ${p.sabores.join(', ')}`)); ul.appendChild(li); }
+    const dl = $('[data-tot]');
+    dl.innerHTML = '';
+    const linha = (rot, val, cls) => { const d = el('div', cls || ''); d.append(el('dt', null, rot), el('dd', null, val)); dl.appendChild(d); };
+    linha('Itens', fmt(p.subtotal_centavos));
+    linha(p.modalidade === 'retirada' ? 'Retirada na loja' : 'Entrega', p.modalidade === 'retirada' ? 'grátis' : p.taxa_entrega_centavos == null ? 'a combinar' : p.taxa_entrega_centavos === 0 ? 'grátis' : fmt(p.taxa_entrega_centavos));
+    linha('Pagamento', p.pagamento);
+    linha('Total', fmt(p.total_centavos) + (p.modalidade === 'entrega' && p.taxa_entrega_centavos == null ? ' + entrega' : ''), 'grand');
+
+    $('[data-ped-wa]').href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(`Olá, Coxitas! Sobre o meu pedido nº ${p.numero}:`)}`;
+    const fim = p.status === 'concluido' || p.status === 'cancelado';
+    $('[data-ped-upd]').textContent = fim ? '' : `Esta página se atualiza sozinha. Última conferida às ${hora.format(new Date())}.`;
+    clearTimeout(timer);
+    if (!fim) timer = setTimeout(atualiza, 30000);
+  }
+
+  async function atualiza() {
+    if (!atual) return;
+    if (document.hidden) { timer = setTimeout(atualiza, 30000); return; }
+    try {
+      const p = await api('acompanhar_pedido', { p_numero: atual.numero, p_codigo: atual.codigo });
+      if (p && !p.erro) mostra(p); else timer = setTimeout(atualiza, 30000);
+    } catch (e) { timer = setTimeout(atualiza, 30000); }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && atual) { clearTimeout(timer); atualiza(); } });
+
+  const ERRO = {
+    nao_encontrado: 'Não achamos esse pedido. Confira o número e os 4 últimos dígitos do telefone.',
+    muitas_tentativas: 'Muitas tentativas erradas para esse pedido. Tente de novo daqui a 1 hora ou fale com a Coxitas pelo WhatsApp.',
+  };
+  findForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    findErr.hidden = true;
+    const n = findForm.numero.value.replace(/\D/g, ''), f = findForm.final.value.replace(/\D/g, '');
+    findForm.numero.toggleAttribute('aria-invalid', !n);
+    findForm.final.toggleAttribute('aria-invalid', f.length !== 4);
+    if (!n || f.length !== 4) { findErr.textContent = 'Preencha o número do pedido e os 4 últimos dígitos do telefone.'; findErr.hidden = false; return; }
+    findBtn.setAttribute('aria-busy', 'true'); findBtn.disabled = true;
+    try {
+      const p = await api('acompanhar_pedido', { p_numero: +n, p_final_telefone: f });
+      if (p.erro) { findErr.textContent = ERRO[p.erro] || ERRO.nao_encontrado; findErr.hidden = false; return; }
+      guarda(p);
+      history.replaceState(null, '', `?n=${encodeURIComponent(p.numero)}&c=${encodeURIComponent(p.codigo)}`);
+      mostra(p);
+    } catch (err) {
+      findErr.textContent = err && err.rede ? 'Sem conexão agora. Tente de novo em instantes.' : 'Não deu para consultar agora. Tente de novo em instantes.';
+      findErr.hidden = false;
+    } finally { findBtn.removeAttribute('aria-busy'); findBtn.disabled = false; }
+  });
+  $('[data-other]').addEventListener('click', () => { atual = null; history.replaceState(null, '', location.pathname); findForm.reset(); mostraBusca(); findForm.numero.focus(); });
+
+  // começo: link com número e código abre direto; sem isso, mostra a busca
+  if (!API) { $('[data-sem-banco]').hidden = false; return; }
+  const q = new URLSearchParams(location.search);
+  const n = (q.get('n') || '').replace(/\D/g, ''), c = (q.get('c') || '').toLowerCase();
+  if (n && /^[0-9a-f]{32}$/.test(c)) {
+    loading.hidden = false;
+    api('acompanhar_pedido', { p_numero: +n, p_codigo: c })
+      .then(p => { if (p.erro) mostraBusca(ERRO.nao_encontrado); else { guarda(p); mostra(p); } })
+      .catch(err => mostraBusca(err && err.rede ? 'Sem conexão agora. Tente de novo em instantes.' : 'Não deu para consultar agora.'));
+  } else mostraBusca();
+})();

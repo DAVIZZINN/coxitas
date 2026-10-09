@@ -4,14 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Coxitas Salgados · Salgados de festa com entrega em Votuporanga, SP</title>
-<meta name="description" content="Coxinha, bolinho de queijo, quibe, risole, combos e mini churros com entrega em Votuporanga. Peça pelo WhatsApp (17) 99643-3594. Seg a sáb, 9h às 21h. Dom, 15h às 20h.">
+<meta name="description" content="Coxinha, bolinho de queijo, quibe, risole, combos e mini churros com entrega em Votuporanga. Peça pelo site ou pelo WhatsApp (17) 99643-3594. Seg a sáb, 9h às 21h. Dom, 15h às 20h.">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <meta name="theme-color" content="#140A05">
 <!--
   ONDE EDITAR
-  · Preços e produtos: seção "cardápio" abaixo (o pedido lê o preço que está escrito em cada card).
+  · Preços e produtos: seção "cardápio" abaixo. Mudou um preço? Rode node supabase/gerar-cardapio.mjs e cole o
+    02-cardapio.sql no Supabase: o pedido gravado usa o preço do banco.
   · WhatsApp, iFood, Instagram, horários e mapa: objeto LOJA no começo de assets/site.js.
-  · Endereço do site: https://davizzinn.github.io/coxitas/ (aqui, no robots.txt e no sitemap.xml). Quando o domínio coxitas.com for comprado, troque aqui e crie o arquivo CNAME.
+  · Banco de pedidos e painel (/admin): assets/config.js e o passo a passo em supabase/LEIA-ME.md.
+  · Endereço do site: https://davizzinn.github.io/coxitas/. Para trocar (domínio próprio), rode
+    node ferramentas/trocar-endereco.mjs https://www.seudominio.com.br/
 -->
 <link rel="canonical" href="https://davizzinn.github.io/coxitas/">
 <link rel="icon" href="favicon.ico" sizes="48x48">
@@ -21,7 +24,7 @@
 <meta property="og:locale" content="pt_BR">
 <meta property="og:site_name" content="Coxitas Salgados">
 <meta property="og:title" content="Coxitas Salgados · Para todo momento virar festa">
-<meta property="og:description" content="Salgados de festa, combos e mini churros com entrega em Votuporanga. Peça pelo WhatsApp.">
+<meta property="og:description" content="Salgados de festa, combos e mini churros com entrega em Votuporanga. Peça pelo site ou pelo WhatsApp.">
 <meta property="og:url" content="https://davizzinn.github.io/coxitas/">
 <meta property="og:image" content="https://davizzinn.github.io/coxitas/assets/img/og-coxitas.jpg">
 <meta property="og:image:width" content="1200">
@@ -65,7 +68,7 @@
 <link rel="preload" href="assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" href="assets/img/poster-recheio-480.webp" imagesrcset="assets/img/poster-recheio-480.webp 480w, assets/img/poster-recheio-720.webp 720w" imagesizes="(max-width: 639px) 46vw, 340px" fetchpriority="high">
-<link rel="stylesheet" href="assets/site.css?v=6">
+<link rel="stylesheet" href="assets/site.css?v=8">
 <script>
   // animações ligadas para todo mundo, no computador e no celular; quem preferir desliga no rodapé
   (function (d) { var m = null; try { m = localStorage.getItem('cx-anim'); } catch (e) {}
@@ -153,7 +156,7 @@
   <div class="wrap hero-copy">
     <p class="eyebrow rv"><svg class="ico" aria-hidden="true"><use href="#i-medal"/></svg>21 anos de sabor e tradição · Votuporanga, SP</p>
     <h1 id="hero-h" class="display rv" style="--d:1">Para todo momento virar <span class="hl">festa.<svg class="swash" viewBox="0 0 300 30" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M4 22C60 8 150 4 296 14"/></svg></span></h1>
-    <p class="lede rv" style="--d:2">Coxinha, bolinho de queijo, quibe, risole e outros salgados de festa, crocantes por fora e recheados por dentro. Peça pelo WhatsApp e a gente leva até você.</p>
+    <p class="lede rv" style="--d:2">Coxinha, bolinho de queijo, quibe, risole e outros salgados de festa, crocantes por fora e recheados por dentro. Peça pelo site ou pelo WhatsApp e a gente leva até você.</p>
     <p class="cta-row rv" style="--d:3">
       <a class="btn btn-lg" href="https://wa.me/5517996433594" data-wa target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg>Pedir pelo WhatsApp</a>
       <a class="btn btn-lg btn-line" href="#cardapio">Ver o cardápio<svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
@@ -215,8 +218,8 @@
   <div class="wrap">
     <div class="sec-head center">
       <p class="eyebrow rv">O cardápio</p>
-      <h2 id="menu-h" class="title split">Escolha, junte tudo e peça pelo WhatsApp.</h2>
-      <p class="lede rv" style="--d:2">Toque em <b>Adicionar</b> nos itens que você quer. O pedido chega pronto no WhatsApp da Coxitas, que confirma o total e a entrega na conversa.</p>
+      <h2 id="menu-h" class="title split">Escolha, junte tudo e faça o seu pedido.</h2>
+      <p class="lede rv" style="--d:2">Toque em <b>Adicionar</b> nos itens que você quer e finalize o pedido: entrega ou retirada e a forma de pagamento. A Coxitas confirma o pedido com você.</p>
     </div>
 
     <nav class="tabs" aria-label="Categorias do cardápio">
@@ -350,7 +353,7 @@
       </ul>
     </div>
 
-    <p class="sheet-note">Preços do cardápio oficial da Coxitas. As fotos mostram os salgados da casa; a montagem do pedido pode variar. O valor final e a entrega são confirmados no WhatsApp.</p>
+    <p class="sheet-note">Preços do cardápio oficial da Coxitas. As fotos mostram os salgados da casa; a montagem do pedido pode variar. A taxa de entrega é combinada com a Coxitas.</p>
   </div>
 </section>
 
@@ -415,7 +418,7 @@
         <li class="feat"><span class="feat-ico" aria-hidden="true"><svg class="ico"><use href="#i-medal"/></svg></span><div><h3>21 anos de tradição</h3><p>Duas décadas fazendo salgado de festa.</p></div></li>
         <li class="feat"><span class="feat-ico" aria-hidden="true"><svg class="ico"><use href="#i-flame"/></svg></span><div><h3>Crocante por fora</h3><p>Casquinha dourada e recheio de verdade em cada salgado.</p></div></li>
         <li class="feat"><span class="feat-ico" aria-hidden="true"><svg class="ico"><use href="#i-users"/></svg></span><div><h3>Combos de 1 a 6 pessoas</h3><p>Salgados à escolha e Guaraná. Os maiores vêm com mini churros.</p></div></li>
-        <li class="feat"><span class="feat-ico" aria-hidden="true"><svg class="ico"><use href="#i-moto"/></svg></span><div><h3>Levamos até você</h3><p>Peça pelo WhatsApp, de segunda a domingo.</p></div></li>
+        <li class="feat"><span class="feat-ico" aria-hidden="true"><svg class="ico"><use href="#i-moto"/></svg></span><div><h3>Levamos até você</h3><p>Peça pelo site ou pelo WhatsApp, de segunda a domingo.</p></div></li>
       </ul>
     </div>
   </div>
@@ -460,7 +463,7 @@
       <article class="way">
         <span class="way-ico" aria-hidden="true"><svg class="ico"><use href="#i-moto"/></svg></span>
         <h3>Entrega</h3>
-        <p>Peça já e a gente leva até você. Valor e tempo de entrega são combinados no WhatsApp.</p>
+        <p>Peça já e a gente leva até você. Valor e tempo de entrega são combinados com a Coxitas.</p>
         <p class="way-note" data-status><i class="dot" aria-hidden="true"></i><span data-status-text>Seg a sáb, 9h às 21h · Dom, 15h às 20h</span></p>
       </article>
       <article class="way" data-ifood-card hidden>
@@ -550,6 +553,7 @@
         <li><a href="https://wa.me/5517996433594" data-wa target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg>WhatsApp (17) 99643-3594</a></li>
         <li><a href="https://www.instagram.com/coxitas_oficial/" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-insta"/></svg>Instagram @coxitas_oficial</a></li>
         <li data-ifood-item hidden><a href="#" data-ifood target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-bag"/></svg>iFood</a></li>
+        <li><a href="pedido/"><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>Acompanhar meu pedido</a></li>
       </ul>
     </div>
     <div>
@@ -586,10 +590,12 @@
         <a class="btn" href="#cardapio" data-close>Ver o cardápio</a>
       </div>
       <ul class="lines" data-lines></ul>
-      <form class="order" id="order" data-filled hidden>
+      <p class="clear-row" data-filled hidden><button class="link-btn" type="button" data-clear>Limpar pedido</button></p>
+      <form class="order" id="order" data-filled hidden novalidate>
+        <p class="order-alert" data-order-alert role="status" hidden></p>
         <fieldset class="flav-pick" data-flav-pick>
           <legend>Sabores preferidos <span>opcional</span></legend>
-          <div class="chips">
+          <div class="chips" data-flav-opts>
             <label><input type="checkbox" name="sabor" value="Coxinha"><span>Coxinha</span></label>
             <label><input type="checkbox" name="sabor" value="Bolinho de queijo"><span>Bolinho de queijo</span></label>
             <label><input type="checkbox" name="sabor" value="Bolinho de carne"><span>Bolinho de carne</span></label>
@@ -599,17 +605,43 @@
             <label><input type="checkbox" name="sabor" value="Bolinho de calabresa"><span>Bolinho de calabresa</span></label>
           </div>
         </fieldset>
-        <div class="field"><label for="o-nome">Seu nome</label><input id="o-nome" name="nome" type="text" autocomplete="name" placeholder="Como podemos te chamar?"></div>
-        <div class="field"><label for="o-end">Endereço de entrega</label><input id="o-end" name="endereco" type="text" autocomplete="street-address" placeholder="Rua, número e bairro"></div>
-        <div class="field"><label for="o-obs">Observação</label><textarea id="o-obs" name="obs" rows="2" placeholder="Alguma coisa que a Coxitas precisa saber?"></textarea></div>
+        <fieldset class="seg">
+          <legend>Como você quer receber?</legend>
+          <div class="seg-opts">
+            <label><input type="radio" name="modalidade" value="entrega" checked><span><svg class="ico" aria-hidden="true"><use href="#i-moto"/></svg>Entrega</span></label>
+            <label><input type="radio" name="modalidade" value="retirada"><span><svg class="ico" aria-hidden="true"><use href="#i-bag"/></svg>Retirar na loja</span></label>
+          </div>
+          <p class="seg-note" data-pickup-note hidden><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg>R. Francisco Pelegrini, 5819, Parque Santa Felicia, Votuporanga</p>
+        </fieldset>
+        <div class="field"><label for="o-nome">Seu nome</label><input id="o-nome" name="nome" type="text" autocomplete="name" maxlength="80" placeholder="Como podemos te chamar?" required aria-describedby="e-nome"><p class="f-err" id="e-nome" hidden></p></div>
+        <div class="field"><label for="o-tel">Telefone (WhatsApp)</label><input id="o-tel" name="telefone" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="20" placeholder="(17) 99999-9999" required aria-describedby="e-tel"><p class="f-err" id="e-tel" hidden></p></div>
+        <div class="field" data-end-field><label for="o-end">Endereço de entrega</label><input id="o-end" name="endereco" type="text" autocomplete="street-address" maxlength="200" placeholder="Rua, número, bairro e um ponto de referência" required aria-describedby="e-end"><p class="f-err" id="e-end" hidden></p></div>
+        <fieldset class="pay" aria-describedby="e-pag">
+          <legend>Forma de pagamento <span>na entrega ou na retirada</span></legend>
+          <div class="chips" data-pay-opts>
+            <label><input type="radio" name="pagamento" value="Pix"><span>Pix</span></label>
+            <label><input type="radio" name="pagamento" value="Dinheiro"><span>Dinheiro</span></label>
+            <label><input type="radio" name="pagamento" value="Cartão na entrega"><span>Cartão na entrega</span></label>
+          </div>
+          <p class="f-err" id="e-pag" hidden></p>
+        </fieldset>
+        <div class="field" data-troco hidden><label for="o-troco">Troco para quanto? <span>opcional</span></label><input id="o-troco" name="troco" type="text" inputmode="decimal" maxlength="10" placeholder="Ex.: 100" aria-describedby="e-troco"><p class="f-err" id="e-troco" hidden></p></div>
+        <div class="field"><label for="o-obs">Observação <span>opcional</span></label><textarea id="o-obs" name="obs" rows="2" maxlength="500" placeholder="Alguma coisa que a Coxitas precisa saber?"></textarea></div>
+        <p class="privacy">Seu nome, telefone e endereço servem só para a Coxitas atender este pedido.</p>
       </form>
+      <section class="done" data-done hidden tabindex="-1" aria-labelledby="done-h"></section>
     </div>
     <footer class="drawer-foot" data-filled hidden>
-      <p class="total"><span>Total dos itens</span><b data-cart-total>R$ 0,00</b></p>
-      <p class="total-note">O valor final e a entrega são confirmados pela Coxitas no WhatsApp.</p>
-      <button class="btn btn-lg btn-wa" type="submit" form="order"><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg>Enviar pedido pelo WhatsApp</button>
+      <dl class="sum">
+        <div><dt>Subtotal</dt><dd data-sum-sub>R$ 0,00</dd></div>
+        <div><dt>Entrega</dt><dd data-sum-fee>a combinar</dd></div>
+        <div class="sum-total"><dt>Total</dt><dd><b data-sum-total>R$ 0,00</b></dd></div>
+      </dl>
+      <p class="total-note" data-total-note>A taxa de entrega é combinada com a Coxitas depois do pedido.</p>
+      <p class="form-err" data-form-err role="alert" hidden></p>
+      <button class="btn btn-lg btn-order" type="submit" form="order" data-submit><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg><span data-submit-label>Enviar pedido pelo WhatsApp</span></button>
+      <a class="btn btn-lg btn-wa btn-fallback" href="#" data-wa-fallback target="_blank" rel="noopener" hidden><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg>Enviar pelo WhatsApp</a>
       <p class="sent" data-sent role="status" hidden>Abrindo o WhatsApp com o seu pedido pronto. É só apertar enviar. <a href="#" data-sent-link target="_blank" rel="noopener">Não abriu? Toque aqui.</a></p>
-      <button class="link-btn" type="button" data-clear>Limpar pedido</button>
     </footer>
   </div>
 </dialog>
@@ -626,6 +658,7 @@
 
 <p class="sr" id="live" aria-live="polite"></p>
 
-<script src="assets/site.js?v=7" defer></script>
+<script src="assets/config.js?v=1" defer></script>
+<script src="assets/site.js?v=8" defer></script>
 </body>
 </html>

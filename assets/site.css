@@ -611,11 +611,66 @@ body.has-cart .foot{padding-bottom:calc(104px + env(safe-area-inset-bottom))}
 .total{display:flex;align-items:baseline;justify-content:space-between;font-weight:700}
 .total b{font:700 26px/1 var(--f-display);font-variation-settings:'SOFT' 100;color:var(--gold);font-variant-numeric:tabular-nums}
 .total-note{margin:6px 0 14px;color:var(--text-3);font-size:13px;line-height:1.45}
-.drawer-foot .btn-wa{width:100%}
+.drawer-foot .btn-wa,.drawer-foot .btn-order{width:100%}
+/* entrega ou retirada */
+.seg{margin:4px 0 4px;padding:0;border:0;min-width:0}
+.seg legend,.pay legend{padding:0;margin-bottom:10px;font:700 15px/1 var(--f-text)}
+.pay legend span,.field label span{margin-left:6px;color:var(--text-3);font-weight:500;font-size:13px}
+.seg-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg-opts label{position:relative;cursor:pointer}
+.seg-opts input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.seg-opts span{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;padding:0 10px;border-radius:14px;border:1.5px solid var(--line-strong);background:rgba(255,241,222,.03);color:var(--text-2);font:700 15px/1.1 var(--f-text);text-align:center;transition:background-color .25s var(--ease-out),border-color .25s var(--ease-out),color .25s var(--ease-out)}
+.seg-opts .ico{width:19px;height:19px;flex:none}
+.seg-opts input:checked+span{border-color:var(--orange);background:rgba(242,120,42,.14);color:var(--cream)}
+.seg-opts input:focus-visible+span{outline:2px solid var(--gold);outline-offset:2px}
+.seg-note{display:flex;gap:8px;margin-top:10px;color:var(--text-2);font-size:14px;line-height:1.45}
+.seg-note .ico{width:17px;height:17px;margin-top:2px;flex:none;color:var(--gold)}
+.pay{margin:18px 0 0;padding:0;border:0;min-width:0}
+/* avisos e erros do formulário */
+.f-err{margin-top:6px;color:#FF9C8A;font-size:13.5px;line-height:1.4}
+.field input[aria-invalid=true],.field textarea[aria-invalid=true]{border-color:#E8604A;box-shadow:0 0 0 3px rgba(232,96,74,.18)}
+.pay[aria-invalid=true] .chips span{border-color:#E8604A}
+.order-alert{display:flex;gap:9px;margin:4px 0 16px;padding:12px 14px;border-radius:14px;background:rgba(247,181,61,.1);border:1px solid rgba(247,181,61,.28);color:var(--text-2);font-size:14px;line-height:1.45}
+.order-alert.is-stop{background:rgba(232,96,74,.1);border-color:rgba(232,96,74,.35)}
+.form-err{margin:0 0 12px;padding:11px 13px;border-radius:12px;background:rgba(232,96,74,.12);border:1px solid rgba(232,96,74,.35);color:#FFD3C9;font-size:14px;line-height:1.45}
+.btn-fallback{width:100%;margin-top:10px}
+.privacy{margin-top:14px;color:var(--text-3);font-size:12.5px;line-height:1.45}
+.btn-order[aria-busy=true]{opacity:.75;cursor:progress}
+/* resumo de valores */
+.sum{display:grid;gap:6px;margin:0}
+.sum div{display:flex;align-items:baseline;justify-content:space-between;gap:12px;color:var(--text-2);font-size:14.5px}
+.sum dd{margin:0;font-variant-numeric:tabular-nums;text-align:right}
+.sum .sum-total{margin-top:4px;padding-top:8px;border-top:1px dashed var(--line-strong);color:var(--cream);font-weight:700;font-size:16px}
+.sum .sum-total b{font:700 26px/1 var(--f-display);font-variation-settings:'SOFT' 100;color:var(--gold)}
+/* pedido confirmado */
+.done{padding:26px 0 8px;outline:none}
+.done-badge{display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:var(--green);color:#052A14}
+.done-badge .ico{width:28px;height:28px}
+.done h3{margin-top:16px;font:600 28px/1.1 var(--f-display);font-variation-settings:'SOFT' 100;letter-spacing:-.02em}
+.done h3 b{color:var(--gold);font-weight:600}
+.done-sub{margin-top:8px;color:var(--text-2);font-size:15px;line-height:1.5}
+.done-box{margin-top:18px;padding:14px 16px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.done-box ul{display:grid;gap:6px;color:var(--text-2);font-size:14.5px}
+.done-box li{display:flex;justify-content:space-between;gap:12px}
+.done-box li span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+.done-meta{display:grid;gap:4px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line-strong);color:var(--text-2);font-size:14px}
+.done-meta b{color:var(--cream)}
+.done-actions{display:grid;gap:10px;margin-top:20px}
+.done-actions .btn{width:100%}
+.done-note{margin-top:14px;color:var(--text-3);font-size:13px;line-height:1.5}
 .sent{margin-top:12px;color:var(--text-2);font-size:14px}
-.drawer-foot .link-btn{display:block;margin:10px auto 0;font-size:14px;color:var(--text-3)}
+.clear-row{display:flex;justify-content:flex-end;margin-top:8px}
+.clear-row .link-btn{font-size:13.5px;color:var(--text-3)}
 @media (max-width:639px){
   .drawer{margin:auto 0 0;width:100%;height:auto;max-height:92dvh;border-radius:24px 24px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.6)}
+  .drawer-foot{padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+  .drawer-body{padding:0 16px 16px}
+  .sum{gap:3px}
+  .sum div{font-size:13.5px}
+  .sum .sum-total{margin-top:2px;padding-top:6px}
+  .sum .sum-total b{font-size:23px}
+  .total-note{margin:4px 0 10px;font-size:12.5px}
+  .drawer-foot .btn-lg{min-height:52px}
   .drawer-in{max-height:92dvh}
   @keyframes drawerIn{from{transform:translateY(60px);opacity:0}}
   @keyframes drawerOut{to{transform:translateY(60px);opacity:0}}

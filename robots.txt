@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /pedido/
+Disallow: /supabase/
+Disallow: /ferramentas/
 
 Sitemap: https://davizzinn.github.io/coxitas/sitemap.xml
