@@ -62,6 +62,8 @@
     t.appendChild(d);
     t.addEventListener('click', () => { t.remove(); if (opts.abrir) abrePedido(opts.abrir); });
     toasts.appendChild(t);
+    // no máximo 3 avisos na tela: o mais antigo sai
+    while (toasts.children.length > 3) toasts.firstElementChild.remove();
     setTimeout(() => t.remove(), opts.tempo || 9000);
   }
   let som = false, audio = null;
@@ -87,7 +89,7 @@
       });
     } catch (e) {}
   }
-  somBtn.addEventListener('click', () => { som = !som; try { localStorage.setItem('cx-painel-som', som ? 'on' : 'off'); } catch (e) {} syncSom(); if (som) bip(); });
+  somBtn.addEventListener('click', () => { som = !som; try { localStorage.setItem('cx-painel-som', som ? 'on' : 'off'); } catch (e) {} syncSom(); if (som) bip(); alarme(); });
   // o navegador só deixa tocar som depois de um clique na página
   document.addEventListener('pointerdown', () => { if (som && audio && audio.state === 'suspended') audio.resume(); }, { passive: true });
   syncSom();
@@ -99,9 +101,9 @@
   const avisados = new Set();
   let conhecidos = null;           // números já vistos (para avisar pedido novo quando o tempo real não estiver ligado)
 
+  // dias contados pelo relógio de Votuporanga
+  const inicioDia = desloc => { const sp = new Date(Date.now() - 3 * 3600e3); return new Date(Date.UTC(sp.getUTCFullYear(), sp.getUTCMonth(), sp.getUTCDate() - desloc) + 3 * 3600e3).toISOString(); };
   function intervalo() {
-    // dias contados pelo relógio de Votuporanga
-    const inicioDia = desloc => { const sp = new Date(Date.now() - 3 * 3600e3); return new Date(Date.UTC(sp.getUTCFullYear(), sp.getUTCMonth(), sp.getUTCDate() - desloc) + 3 * 3600e3).toISOString(); };
     if (f.periodo === 'hoje') return { p_de: inicioDia(0), p_ate: null };
     if (f.periodo === '7') return { p_de: inicioDia(6), p_ate: null };
     if (f.periodo === '30') return { p_de: inicioDia(29), p_ate: null };
@@ -114,14 +116,15 @@
   }
 
   /* ---------- abas ---------- */
-  const TITULO = { painel: 'Painel', pedidos: 'Pedidos', loja: 'Loja' };
-  let aba = 'painel';
+  const TITULO = { quadro: 'Quadro de pedidos', painel: 'Painel', pedidos: 'Pedidos', loja: 'Loja' };
+  let aba = 'quadro';
   function vaiPara(nova) {
-    aba = TITULO[nova] ? nova : 'painel';
+    aba = TITULO[nova] ? nova : 'quadro';
     $$('[data-tab]').forEach(a => { if (a.dataset.tab === aba) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     $$('[data-tab-view]').forEach(v => { v.hidden = v.dataset.tabView !== aba; });
     $('[data-titulo]').textContent = TITULO[aba];
     $('[data-filtros]').hidden = aba === 'loja';
+    $('[data-filtros]').classList.toggle('so-testes', aba === 'quadro');
     if (aba === 'loja') carregaConfig(); else atualiza();
   }
   window.addEventListener('hashchange', () => vaiPara(location.hash.slice(1)));
@@ -198,6 +201,7 @@
   async function carregaNovos() {
     const r = await rpc('admin_pedidos', { p_status: ['novo'], p_teste: f.testes, p_limite: 20 });
     const n = r.total;
+    if (n !== novosAgora) { novosAgora = n; alarme(); }
     const b = $('[data-badge-novos]');
     b.textContent = String(n); b.hidden = !n;
     document.title = `${n ? `(${n}) ` : ''}Painel · Coxitas`;
@@ -213,6 +217,7 @@
     ocupado = true;
     try {
       await carregaNovos();
+      if (aba === 'quadro') await carregaQuadro();
       if (aba === 'painel') await carregaResumo();
       if (aba === 'pedidos') await carregaLista(true);
       if (aberto && !o.semDetalhe) await recarregaDetalhe();
@@ -234,6 +239,98 @@
     bip();
     toast(`Pedido novo nº ${p.numero}`, `${p.cliente_nome} · ${fmt(p.total_centavos)}`, { abrir: p.id, tempo: 15000 });
     requestAnimationFrame(() => $$(`.order[data-id="${p.id}"]`).forEach(x => x.classList.add('flash')));
+  }
+
+  /* ---------- quadro de pedidos (como o gestor do iFood): cada etapa numa coluna, o mais antigo primeiro ---------- */
+  const COLS = { novo: ['novo'], preparo: ['confirmado', 'em_preparo'], pronto: ['pronto_retirada', 'saiu_entrega'] };
+  const PROXIMO = { novo: () => 'confirmado', confirmado: () => 'em_preparo', em_preparo: p => (p.modalidade === 'retirada' ? 'pronto_retirada' : 'saiu_entrega'), pronto_retirada: () => 'concluido', saiu_entrega: () => 'concluido' };
+  const BOTAO = { novo: () => 'Aceitar pedido', confirmado: () => 'Começar o preparo', em_preparo: p => (p.modalidade === 'retirada' ? 'Pronto para retirada' : 'Saiu para entrega'), pronto_retirada: () => 'Cliente retirou', saiu_entrega: () => 'Entregue' };
+  const VAZIO = { novo: 'Nenhum pedido esperando.', preparo: 'Nada no preparo agora.', pronto: 'Nenhum pedido pronto ou a caminho.', fim: 'Nenhum pedido finalizado hoje.' };
+  const minutos = iso => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  const tempoTxt = m => (m < 1 ? 'agora' : m < 60 ? `há ${m} min` : `há ${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`);
+  // pedido novo esperando mais de 5 min fica amarelo e mais de 10 vermelho; em andamento, 40 e 60 min
+  const nivel = (status, iso) => { const m = minutos(iso); return status === 'novo' ? (m >= 10 ? 'atraso' : m >= 5 ? 'atencao' : '') : (m >= 60 ? 'atraso' : m >= 40 ? 'atencao' : ''); };
+  let cancelarAoAbrir = false;
+
+  function cartao(p, fim) {
+    const li = el('li', `cp cp-${p.status} ${fim ? '' : nivel(p.status, p.criado_em)}`.trim());
+    li.dataset.id = p.id; li.dataset.criado = p.criado_em; li.dataset.status = p.status;
+    const abre = el('button', 'cp-abre'); abre.type = 'button'; abre.title = `Abrir o pedido nº ${p.numero}`;
+    const l1 = el('span', 'cp-l1');
+    l1.append(el('b', 'cp-num', `#${p.numero}`));
+    if (p.teste) l1.append(el('span', 'tag-teste', 'teste'));
+    l1.append(fim ? badgeStatus(p.status) : el('span', 'cp-tempo', tempoTxt(minutos(p.criado_em))));
+    abre.append(l1, el('span', 'cp-nome', p.cliente_nome));
+    if (!fim) {
+      abre.append(el('span', 'cp-itens', resumoItens(p)));
+      const rec = el('span', 'cp-rec');
+      rec.append(ico(p.modalidade === 'retirada' ? 'i-bag' : 'i-moto'), p.modalidade === 'retirada' ? 'Retirada' : (p.endereco || 'Entrega'));
+      abre.append(rec);
+      const l4 = el('span', 'cp-l4');
+      l4.append(el('span', null, p.pagamento + (p.troco_para_centavos ? ` · troco p/ ${fmt(p.troco_para_centavos)}` : '')), el('b', null, fmt(p.total_centavos) + (p.modalidade === 'entrega' && p.taxa_entrega_centavos == null ? ' +' : '')));
+      abre.append(l4);
+      if (COLS.preparo.includes(p.status) || COLS.pronto.includes(p.status)) abre.append(badgeStatus(p.status));
+    } else abre.append(el('span', 'cp-l4', fmt(p.total_centavos)));
+    abre.addEventListener('click', () => abrePedido(p.id, abre));
+    li.appendChild(abre);
+    if (!fim && PROXIMO[p.status]) {
+      const acoes = el('div', 'cp-acoes');
+      const para = PROXIMO[p.status](p);
+      const ok = el('button', `btn btn-sm ${p.status === 'novo' ? 'btn-aceitar' : ''}`.trim(), BOTAO[p.status](p));
+      ok.type = 'button';
+      ok.addEventListener('click', () => avanca(p, para, ok));
+      acoes.appendChild(ok);
+      if (p.status === 'novo') {
+        const nao = el('button', 'btn btn-red btn-sm', 'Recusar'); nao.type = 'button';
+        nao.addEventListener('click', () => { cancelarAoAbrir = true; abrePedido(p.id, nao); });
+        acoes.appendChild(nao);
+      }
+      li.appendChild(acoes);
+    }
+    return li;
+  }
+  function coluna(nome, lista, fim) {
+    const sec = $(`[data-col="${nome}"]`);
+    $('[data-col-n]', sec).textContent = String(lista.length);
+    const ul = $('[data-col-list]', sec);
+    ul.innerHTML = '';
+    if (!lista.length) { ul.appendChild(el('li', 'col-vazio', VAZIO[nome])); return; }
+    lista.forEach(p => ul.appendChild(cartao(p, fim)));
+  }
+  async function carregaQuadro() {
+    const ativos = await rpc('admin_pedidos', { p_status: [...COLS.novo, ...COLS.preparo, ...COLS.pronto], p_teste: f.testes, p_limite: 200 });
+    const fim = await rpc('admin_pedidos', { p_status: ['concluido', 'cancelado'], p_de: inicioDia(0), p_teste: f.testes, p_limite: 30 });
+    const fila = (a, b) => (a.criado_em < b.criado_em ? -1 : 1);
+    for (const [nome, sts] of Object.entries(COLS)) coluna(nome, ativos.pedidos.filter(p => sts.includes(p.status)).sort(fila), false);
+    coluna('fim', fim.pedidos, true);
+  }
+  async function avanca(p, para, btn) {
+    $$('button', btn.closest('.cp')).forEach(b => { b.disabled = true; });
+    btn.setAttribute('aria-busy', 'true');
+    try {
+      await rpc('admin_mudar_status', { p_id: p.id, p_para: para, p_de: p.status });
+      toast(`Pedido nº ${p.numero}: ${NOME[para]}`, null, { tempo: 3000 });
+    } catch (e) {
+      toast('Não mudou o status', textoErro(e), { erro: true });
+    } finally {
+      atualiza({ silencioso: true });
+    }
+  }
+  // o tempo de espera de cada cartão anda sozinho
+  setInterval(() => {
+    $$('.board .cp[data-criado]').forEach(li => {
+      if (li.closest('[data-col="fim"]')) return;
+      const t = $('.cp-tempo', li); if (t) t.textContent = tempoTxt(minutos(li.dataset.criado));
+      li.classList.remove('atencao', 'atraso');
+      const n = nivel(li.dataset.status, li.dataset.criado); if (n) li.classList.add(n);
+    });
+  }, 30000);
+
+  // como no iFood: enquanto houver pedido novo sem aceitar, o toque repete a cada 20 segundos (com o som ligado)
+  let novosAgora = 0, tAlarme = 0;
+  function alarme() {
+    clearInterval(tAlarme);
+    if (som && novosAgora > 0) tAlarme = setInterval(() => { if (novosAgora > 0 && som && eu) bip(); else clearInterval(tAlarme); }, 20000);
   }
 
   /* ---------- tempo real (e o plano B) ---------- */
@@ -323,6 +420,7 @@
       }
     } else acoes.appendChild(el('p', 'd-final', p.status === 'concluido' ? 'Pedido concluído.' : 'Pedido cancelado.'));
     corpo.appendChild(acoes);
+    if (cancelarAoAbrir) { cancelarAoAbrir = false; const c = $$('.btn-red', acoes).find(b => b.textContent === 'Cancelar pedido'); if (c) c.click(); }
 
     // cliente
     const cli = sec('Cliente');
@@ -463,7 +561,7 @@
   });
   async function sair() {
     // para tudo antes de sair, para nenhuma conferência agendada rodar já sem login
-    eu = null; clearInterval(relogio); clearTimeout(tAgenda); clearTimeout(tBusca);
+    eu = null; clearInterval(relogio); clearTimeout(tAgenda); clearTimeout(tBusca); clearInterval(tAlarme); novosAgora = 0;
     try { await sb.removeAllChannels(); } catch (e) {}
     await sb.auth.signOut();
     conhecidos = null; avisados.clear(); fechaPedido();
@@ -487,7 +585,7 @@
     $('[data-me-papel]').textContent = eu.papel === 'dono' ? 'Dono' : 'Atendente';
     mostraTela('app');
     ligaTempoReal();
-    vaiPara(location.hash.slice(1) || 'painel');
+    vaiPara(location.hash.slice(1) || 'quadro');
   }
 
   (async () => {

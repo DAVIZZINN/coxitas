@@ -67,8 +67,8 @@
 </script>
 <link rel="preload" href="assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" as="image" href="assets/img/poster-recheio-480.webp" imagesrcset="assets/img/poster-recheio-480.webp 480w, assets/img/poster-recheio-720.webp 720w" imagesizes="(max-width: 639px) 46vw, 340px" fetchpriority="high">
-<link rel="stylesheet" href="assets/site.css?v=8">
+<link rel="preload" as="image" href="assets/img/poster-coxinha-480.webp" imagesrcset="assets/img/poster-coxinha-480.webp 480w, assets/img/poster-coxinha-720.webp 720w" imagesizes="(max-width: 639px) 46vw, 340px" fetchpriority="high">
+<link rel="stylesheet" href="assets/site.css?v=9">
 <script>
   // animações ligadas para todo mundo, no computador e no celular; quem preferir desliga no rodapé
   (function (d) { var m = null; try { m = localStorage.getItem('cx-anim'); } catch (e) {}
@@ -166,19 +166,19 @@
     <i class="reels-ember" aria-hidden="true"></i>
     <div class="steam steam-hero" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <figure class="reel reel-l">
-      <img class="reel-poster" src="assets/img/poster-fritura-480.webp" srcset="assets/img/poster-fritura-480.webp 480w, assets/img/poster-fritura-720.webp 720w" sizes="(max-width: 639px) 36vw, 300px" width="480" height="720" alt="Cestos de salgados saindo da fritura." fetchpriority="low">
-      <video muted loop playsinline preload="none" data-src="assets/video/loop-fritura" width="480" height="720" aria-hidden="true" tabindex="-1"></video>
-      <figcaption>Saindo da fritura</figcaption>
+      <img class="reel-poster" src="assets/img/poster-queijo-480.webp" srcset="assets/img/poster-queijo-480.webp 480w, assets/img/poster-queijo-720.webp 720w" sizes="(max-width: 639px) 36vw, 300px" width="480" height="720" alt="Bolinho de queijo aberto com o queijo derretido puxando.">
+      <video muted loop playsinline preload="none" data-src="assets/video/loop-queijo" width="480" height="720" aria-hidden="true" tabindex="-1"></video>
+      <figcaption>Queijo que puxa</figcaption>
     </figure>
     <figure class="reel reel-c">
-      <img class="reel-poster" src="assets/img/poster-recheio-480.webp" srcset="assets/img/poster-recheio-480.webp 480w, assets/img/poster-recheio-720.webp 720w" sizes="(max-width: 639px) 46vw, 340px" width="480" height="720" alt="Bolinho de queijo aberto com o queijo puxando." fetchpriority="high">
-      <video muted loop playsinline preload="none" data-src="assets/video/loop-recheio" width="480" height="720" aria-hidden="true" tabindex="-1"></video>
-      <figcaption>Recheio de verdade</figcaption>
+      <img class="reel-poster" src="assets/img/poster-coxinha-480.webp" srcset="assets/img/poster-coxinha-480.webp 480w, assets/img/poster-coxinha-720.webp 720w" sizes="(max-width: 639px) 46vw, 340px" width="480" height="720" alt="Coxinha dourada mergulhada no molho e aberta mostrando o recheio." fetchpriority="high">
+      <video muted loop playsinline preload="none" data-src="assets/video/loop-coxinha" width="480" height="720" aria-hidden="true" tabindex="-1"></video>
+      <figcaption>Coxinha no molho</figcaption>
     </figure>
     <figure class="reel reel-r">
-      <img class="reel-poster" src="assets/img/poster-bandeja-480.webp" srcset="assets/img/poster-bandeja-480.webp 480w, assets/img/poster-bandeja-720.webp 720w" sizes="(max-width: 639px) 36vw, 300px" width="480" height="720" alt="Bandejas de coxinhas empanadas e quibes prontos." fetchpriority="low">
-      <video muted loop playsinline preload="none" data-src="assets/video/loop-bandeja" width="480" height="720" aria-hidden="true" tabindex="-1"></video>
-      <figcaption>Bandeja cheia</figcaption>
+      <img class="reel-poster" src="assets/img/poster-calabresa-480.webp" srcset="assets/img/poster-calabresa-480.webp 480w, assets/img/poster-calabresa-720.webp 720w" sizes="(max-width: 639px) 36vw, 300px" width="480" height="720" alt="Bolinho de calabresa aberto sendo mergulhado no molho.">
+      <video muted loop playsinline preload="none" data-src="assets/video/loop-calabresa" width="480" height="720" aria-hidden="true" tabindex="-1"></video>
+      <figcaption>Bolinho de calabresa</figcaption>
     </figure>
   </div>
 </section>
@@ -343,13 +343,34 @@
         <p>Vale para os combos e para os salgados por quantidade. Você escolhe no pedido.</p>
       </div>
       <ul class="flavors rv">
-        <li>Coxinha</li>
-        <li>Bolinho de queijo</li>
-        <li>Bolinho de carne</li>
-        <li>Risole</li>
-        <li>Enroladinho de salsicha</li>
-        <li>Quibe</li>
-        <li>Bolinho de calabresa</li>
+        <li class="flav" data-sabor="Coxinha">
+          <span class="flav-media"><img src="assets/img/sabor-coxinha.webp" width="480" height="600" loading="lazy" decoding="async" alt="Coxinhas douradas numa tábua de madeira."><video muted loop playsinline preload="none" data-src="assets/video/sabor-coxinha" data-mini width="480" height="600" aria-hidden="true" tabindex="-1"></video></span>
+          <b>Coxinha</b>
+        </li>
+        <li class="flav" data-sabor="Bolinho de queijo">
+          <span class="flav-media"><img src="assets/img/sabor-queijo.webp" width="480" height="600" loading="lazy" decoding="async" alt="Tigela de bolinhos de queijo empanados."><video muted loop playsinline preload="none" data-src="assets/video/sabor-queijo" data-mini width="480" height="600" aria-hidden="true" tabindex="-1"></video></span>
+          <b>Bolinho de queijo</b>
+        </li>
+        <li class="flav" data-sabor="Bolinho de carne">
+          <span class="flav-media"><img src="assets/img/sabor-carne.webp" width="480" height="600" loading="lazy" decoding="async" alt="Bolinhos de carne abertos mostrando o recheio de carne moída."><video muted loop playsinline preload="none" data-src="assets/video/sabor-carne" data-mini width="480" height="600" aria-hidden="true" tabindex="-1"></video></span>
+          <b>Bolinho de carne</b>
+        </li>
+        <li class="flav" data-sabor="Risole">
+          <span class="flav-media"><img src="assets/img/sabor-risole.webp" width="480" height="600" loading="lazy" decoding="async" alt="Risole aberto mostrando o recheio."><video muted loop playsinline preload="none" data-src="assets/video/sabor-risole" data-mini width="480" height="600" aria-hidden="true" tabindex="-1"></video></span>
+          <b>Risole</b>
+        </li>
+        <li class="flav" data-sabor="Quibe">
+          <span class="flav-media"><img src="assets/img/sabor-quibe.webp" width="480" height="600" loading="lazy" decoding="async" alt="Quibes fritos numa panelinha vermelha."><video muted loop playsinline preload="none" data-src="assets/video/sabor-quibe" data-mini width="480" height="600" aria-hidden="true" tabindex="-1"></video></span>
+          <b>Quibe</b>
+        </li>
+        <li class="flav" data-sabor="Bolinho de calabresa">
+          <span class="flav-media"><img src="assets/img/sabor-calabresa.webp" width="480" height="600" loading="lazy" decoding="async" alt="Bolinhos de calabresa numa panelinha vermelha."><video muted loop playsinline preload="none" data-src="assets/video/sabor-calabresa" data-mini width="480" height="600" aria-hidden="true" tabindex="-1"></video></span>
+          <b>Bolinho de calabresa</b>
+        </li>
+        <li class="flav flav-txt" data-sabor="Enroladinho de salsicha">
+          <span class="flav-media" aria-hidden="true"><svg class="ico"><use href="#i-flame"/></svg></span>
+          <b>Enroladinho de salsicha</b>
+        </li>
       </ul>
     </div>
 
@@ -434,14 +455,14 @@
       <a class="btn btn-line rv" style="--d:2" href="https://www.instagram.com/coxitas_oficial/" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-insta"/></svg>@coxitas_oficial</a>
     </div>
     <ul class="grid-gal rv">
-      <li class="g-big"><button class="shot" type="button" data-full="assets/img/gal-cesto-1080.webp"><span class="kb"><img src="assets/img/gal-cesto-800.webp" srcset="assets/img/gal-cesto-480.webp 480w, assets/img/gal-cesto-800.webp 800w, assets/img/gal-cesto-1080.webp 1080w" sizes="(max-width: 639px) 100vw, 50vw" width="800" height="1000" loading="lazy" decoding="async" alt="Cesto de fritura com salgados dourados."></span><span class="shot-cap">Saindo da fritura</span></button></li>
-      <li><button class="shot" type="button" data-full="assets/img/gal-queijo-800.webp"><span class="kb"><img src="assets/img/gal-queijo-480.webp" srcset="assets/img/gal-queijo-480.webp 480w, assets/img/gal-queijo-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Mão de luva segurando um bolinho de queijo."></span><span class="shot-cap">Bolinho de queijo</span></button></li>
-      <li><button class="shot" type="button" data-full="assets/img/gal-recheio-800.webp"><span class="kb"><img src="assets/img/gal-recheio-480.webp" srcset="assets/img/gal-recheio-480.webp 480w, assets/img/gal-recheio-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Coxinha aberta mostrando o recheio de carne."></span><span class="shot-cap">Recheio caprichado</span></button></li>
+      <li class="g-big"><button class="shot" type="button" data-full="assets/img/gal-coxinha-aberta-1080.webp"><span class="kb"><img src="assets/img/gal-coxinha-aberta-800.webp" srcset="assets/img/gal-coxinha-aberta-480.webp 480w, assets/img/gal-coxinha-aberta-800.webp 800w, assets/img/gal-coxinha-aberta-1080.webp 1080w" sizes="(max-width: 639px) 100vw, 50vw" width="800" height="1000" loading="lazy" decoding="async" alt="Coxinha aberta numa tábua de madeira, com o recheio de frango à mostra."></span><span class="shot-cap">Recheio caprichado</span></button></li>
+      <li><button class="shot" type="button" data-full="assets/img/gal-queijo-puxa-1080.webp"><span class="kb"><img src="assets/img/gal-queijo-puxa-480.webp" srcset="assets/img/gal-queijo-puxa-480.webp 480w, assets/img/gal-queijo-puxa-800.webp 800w, assets/img/gal-queijo-puxa-1080.webp 1080w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Mão abrindo um bolinho de queijo, com o queijo derretido puxando."></span><span class="shot-cap">Queijo que puxa</span></button></li>
+      <li><button class="shot" type="button" data-full="assets/img/gal-cesto-1080.webp"><span class="kb"><img src="assets/img/gal-cesto-480.webp" srcset="assets/img/gal-cesto-480.webp 480w, assets/img/gal-cesto-800.webp 800w, assets/img/gal-cesto-1080.webp 1080w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Cesto de fritura com salgados dourados."></span><span class="shot-cap">Saindo da fritura</span></button></li>
+      <li><button class="shot" type="button" data-full="assets/img/gal-carne-800.webp"><span class="kb"><img src="assets/img/gal-carne-480.webp" srcset="assets/img/gal-carne-480.webp 480w, assets/img/gal-carne-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Bolinhos de carne abertos com recheio de carne moída."></span><span class="shot-cap">Bolinho de carne</span></button></li>
       <li><button class="shot" type="button" data-full="assets/img/gal-churros-800.webp"><span class="kb"><img src="assets/img/gal-churros-480.webp" srcset="assets/img/gal-churros-480.webp 480w, assets/img/gal-churros-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Mini churros passados no açúcar."></span><span class="shot-cap">Mini churros</span></button></li>
-      <li><button class="shot" type="button" data-full="assets/img/gal-quibe-800.webp"><span class="kb"><img src="assets/img/gal-quibe-480.webp" srcset="assets/img/gal-quibe-480.webp 480w, assets/img/gal-quibe-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Quibes e coxinhas numa bandeja."></span><span class="shot-cap">Quibe e coxinha</span></button></li>
+      <li><button class="shot" type="button" data-full="assets/img/gal-risole-800.webp"><span class="kb"><img src="assets/img/gal-risole-480.webp" srcset="assets/img/gal-risole-480.webp 480w, assets/img/gal-risole-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Panelinha vermelha com risoles, um deles aberto."></span><span class="shot-cap">Risole</span></button></li>
+      <li><button class="shot" type="button" data-full="assets/img/gal-quibe-pote-600.webp"><span class="kb"><img src="assets/img/gal-quibe-pote-480.webp" srcset="assets/img/gal-quibe-pote-480.webp 480w, assets/img/gal-quibe-pote-600.webp 600w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Quibes fritos numa panelinha vermelha."></span><span class="shot-cap">Quibe</span></button></li>
       <li><button class="shot" type="button" data-full="assets/img/gal-bandeiras-800.webp"><span class="kb"><img src="assets/img/gal-bandeiras-480.webp" srcset="assets/img/gal-bandeiras-480.webp 480w, assets/img/gal-bandeiras-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Bandeja de coxinhas com bandeirinhas do Brasil."></span><span class="shot-cap">Dia de jogo</span></button></li>
-      <li><button class="shot" type="button" data-full="assets/img/gal-dourados-800.webp"><span class="kb"><img src="assets/img/gal-dourados-480.webp" srcset="assets/img/gal-dourados-480.webp 480w, assets/img/gal-dourados-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Salgados dourados bem de perto."></span><span class="shot-cap">Douradinhos</span></button></li>
-      <li><button class="shot" type="button" data-full="assets/img/gal-coxinhas-800.webp"><span class="kb"><img src="assets/img/gal-coxinhas-480.webp" srcset="assets/img/gal-coxinhas-480.webp 480w, assets/img/gal-coxinhas-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Bandeja cheia de salgados alaranjados."></span><span class="shot-cap">Bandeja cheia</span></button></li>
       <li><a class="ig-tile" href="https://www.instagram.com/coxitas_oficial/" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-insta"/></svg><span>Mais vídeos saindo da fritura no Instagram</span><b>@coxitas_oficial</b></a></li>
     </ul>
   </div>
@@ -659,6 +680,6 @@
 <p class="sr" id="live" aria-live="polite"></p>
 
 <script src="assets/config.js?v=1" defer></script>
-<script src="assets/site.js?v=8" defer></script>
+<script src="assets/site.js?v=9" defer></script>
 </body>
 </html>

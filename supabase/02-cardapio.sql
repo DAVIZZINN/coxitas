@@ -1,4 +1,4 @@
--- Gerado por supabase/gerar-cardapio.mjs a partir do index.html em 2026-10-09. Não edite à mão:
+-- Gerado por supabase/gerar-cardapio.mjs a partir do index.html em 2026-10-10. Não edite à mão:
 -- mude o preço no site e rode o gerador de novo.
 -- 15 produtos e 7 sabores.
 
@@ -24,4 +24,4 @@ on conflict (id) do update set nome = excluded.nome, detalhe = excluded.detalhe,
 -- o que saiu do site fica inativo (não aparece e não pode ser pedido), mas continua nos pedidos antigos
 update public.produtos set ativo = false where id not in ('combo-individual', 'combo-dupla', 'combo-familia', 'combo-galera', 'salgados-30', 'salgados-50', 'salgados-80', 'salgados-100', 'churros-10', 'churros-20', 'churros-30', 'churros-40', 'churros-50', 'churros-80', 'churros-100');
 
-update public.loja_config set sabores = array['Coxinha', 'Bolinho de queijo', 'Bolinho de carne', 'Risole', 'Enroladinho de salsicha', 'Quibe', 'Bolinho de calabresa'] where id = 1;
+update public.loja_config set sabores = array['Coxinha', 'Bolinho de queijo', 'Bolinho de carne', 'Risole', 'Quibe', 'Bolinho de calabresa', 'Enroladinho de salsicha'] where id = 1;

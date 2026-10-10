@@ -30,7 +30,10 @@ while ((m = re.exec(html))) {
 // combos e salgados por quantidade: o cliente escolhe os sabores (o mesmo critério do site)
 produtos.forEach(p => { p.sabores = /^(combo|salgados)-/.test(p.id); });
 
-const sabores = [...html.match(/<ul class="flavors[^"]*">([\s\S]*?)<\/ul>/)[1].matchAll(/<li>([^<]+)<\/li>/g)].map(x => ent(x[1]).trim());
+// sabores: cartões com data-sabor (ou, no formato antigo, o texto de cada <li>)
+const ulSab = html.match(/<ul class="flavors[^"]*">([\s\S]*?)<\/ul>/)[1];
+let sabores = [...ulSab.matchAll(/data-sabor="([^"]+)"/g)].map(x => ent(x[1]).trim());
+if (!sabores.length) sabores = [...ulSab.matchAll(/<li>([^<]+)<\/li>/g)].map(x => ent(x[1]).trim());
 if (!produtos.length || produtos.some(p => !p.id || !p.nome || !(p.preco > 0))) throw new Error('cardápio não lido direito: ' + JSON.stringify(produtos));
 
 const q = s => `'${String(s).replace(/'/g, "''")}'`;
@@ -49,5 +52,26 @@ update public.produtos set ativo = false where id not in (${produtos.map(p => q(
 update public.loja_config set sabores = array[${sabores.map(q).join(', ')}] where id = 1;
 `;
 writeFileSync(join(here, '02-cardapio.sql'), sql);
-console.log(`02-cardapio.sql: ${produtos.length} produtos, ${sabores.length} sabores`);
+
+// instalar.sql: tudo num arquivo só (estrutura + cardápio + acesso do dono), para colar uma vez no SQL Editor
+const estrutura = readFileSync(join(here, '01-estrutura.sql'), 'utf8');
+const dono = `
+-- =====================================================================================
+-- Acesso do dono ao painel. Antes de rodar: crie a conta em Authentication > Users > Add user
+-- e troque o e-mail e o nome abaixo. (Rodar sem trocar não faz nada.)
+-- =====================================================================================
+insert into public.equipe (user_id, nome, papel)
+select id, 'Dono da Coxitas', 'dono' from auth.users where email = 'EMAIL-DO-DONO@exemplo.com'
+on conflict (user_id) do update set nome = excluded.nome, papel = 'dono', ativo = true;
+
+-- confere: deve aparecer uma linha com o e-mail do dono e papel "dono"
+select u.email, e.nome, e.papel, e.ativo from public.equipe e join auth.users u on u.id = e.user_id;
+`;
+writeFileSync(join(here, 'instalar.sql'), `-- Coxitas · instalação completa do banco de pedidos (gerado por supabase/gerar-cardapio.mjs; não edite à mão,
+-- só o e-mail do dono lá no fim). Cole tudo no SQL Editor do Supabase e clique em Run. Pode rodar de novo.
+
+${estrutura}
+${sql}
+${dono}`);
+console.log(`02-cardapio.sql e instalar.sql: ${produtos.length} produtos, ${sabores.length} sabores`);
 produtos.forEach(p => console.log(`  ${p.id.padEnd(18)} ${String(p.preco).padStart(6)}  ${p.nome} · ${p.detalhe}`));

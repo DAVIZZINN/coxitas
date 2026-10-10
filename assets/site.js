@@ -81,6 +81,27 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && nav.classList.contains('menu-open')) { setMenu(false); menuBtn.focus(); } });
   matchMedia('(min-width: 900px)').addEventListener('change', e => { if (e.matches) setMenu(false); });
 
+  // links para seções da página: as partes de baixo só ganham a altura de verdade quando passam pela tela
+  // (content-visibility), então a rolagem confere onde parou e acerta o lugar no fim
+  const padTopo = () => parseFloat(getComputedStyle(root).scrollPaddingTop) || 0;
+  function vaiAte(alvo) {
+    alvo.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+    let voltas = 0;
+    const confere = () => {
+      if (Math.abs(alvo.getBoundingClientRect().top - padTopo()) > 6 && voltas++ < 3) { alvo.scrollIntoView({ behavior: 'auto', block: 'start' }); setTimeout(confere, 250); }
+    };
+    if ('onscrollend' in window) addEventListener('scrollend', () => setTimeout(confere, 60), { once: true }); else setTimeout(confere, 1100);
+  }
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href^="#"]');
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || a.hash.length < 2) return;
+    const alvo = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+    if (!alvo) return;
+    e.preventDefault();
+    if (location.hash !== a.hash) history.pushState(null, '', a.hash);
+    vaiAte(alvo);
+  });
+
   let ticking = false, booted = false, SY = 0;
   function onScroll() {
     ticking = false;
@@ -168,7 +189,9 @@
       if (!v.getAttribute('src')) {
         // computador ganha o vídeo mais nítido; tablet e o vídeo do meio no celular, o médio;
         // os dos lados no celular aparecem pequenos e meio escondidos, então descem o mais leve
-        v.src = v.dataset.src + (VW >= 900 ? '-720.mp4' : phone && side ? '-360.mp4' : '-480.mp4');
+        v.src = v.dataset.src + (v.hasAttribute('data-mini')
+          ? (VW >= 640 ? '-480.mp4' : '-320.mp4')                                   // sabores: cartões pequenos
+          : VW >= 900 ? '-720.mp4' : phone && side ? '-360.mp4' : '-480.mp4');
         v.addEventListener('playing', () => v.classList.add('on'), { once: true });
       }
       const p = v.play();
