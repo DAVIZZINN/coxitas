@@ -1,5 +1,5 @@
 /* Coxitas · painel da loja.
-   Login com a conta da Vercel (api/auth.js). Todos os dados passam pela API do próprio site (api/admin.js), que confere
+   Login com código no e-mail ou com a conta da Vercel (api/auth.js). Todos os dados passam pela API do próprio site (api/admin.js), que confere
    a sessão e se o e-mail continua ativo na equipe: esconder esta página não é a proteção, sem sessão a API não entrega
    nada. Pedidos novos: o painel confere a cada 10 segundos (mais devagar com a aba escondida, com a loja fechada ou
    sem ninguém mexendo há horas, para o banco do plano grátis poder descansar). */
@@ -625,7 +625,7 @@
       await api('equipe_salvar', null, { email, nome, papel: eqForm.dono.checked ? 'dono' : 'atendente', ativo: true });
       eqForm.reset();
       await carregaEquipe();
-      toast(`${nome} entrou na equipe`, `Já pode entrar no painel com a conta da Vercel do e-mail ${email}.`, { tempo: 8000 });
+      toast(`${nome} entrou na equipe`, `Já pode entrar no painel com o código que chega em ${email}.`, { tempo: 8000 });
     } catch (ex) { err.textContent = textoErro(ex); err.hidden = false; }
     finally { btn.removeAttribute('aria-busy'); btn.disabled = false; }
   });
@@ -646,7 +646,84 @@
     err.hidden = !ERRO_LOGIN[codigo];
     $('[data-entrar]').removeAttribute('aria-busy');
     mostraTela('login');
+    if (!cf.hidden) (emailCodigo ? cf.codigo : cf.email).focus();
   }
+
+  /* ---------- entrar com código no e-mail ---------- */
+  // 1) e-mail -> o servidor pede ao login do Neon para mandar o código (só se o e-mail for da equipe);
+  // 2) código -> o servidor confere com o Neon e abre a sessão. O código nunca passa por este arquivo além do formulário.
+  const cf = $('[data-codigo-form]'), cfBtn = $('[data-codigo-btn]'), reenviar = $('[data-reenviar]');
+  let emailCodigo = '', tReenvio = 0;
+  const ERRO_COD = {
+    email_invalido: 'Confira o e-mail.',
+    codigo_invalido: 'Código errado. Use o do último e-mail que chegou.',
+    codigo_expirado: 'Esse código venceu. Toque em "Reenviar código".',
+    codigo_bloqueado: 'Muitas tentativas com esse código. Toque em "Reenviar código".',
+    muitas_tentativas: 'Muitas tentativas seguidas. Espere alguns minutos e tente de novo.',
+    envio_falhou: 'Não deu para mandar o código agora. Tente de novo em instantes.',
+    codigo_nao_configurado: 'O login por código ainda não está ligado.',
+    sem_banco: 'O banco de pedidos não está ligado.',
+    origem: 'Bloqueado por segurança. Recarregue a página.',
+  };
+  const erroLogin = txt => { const err = $('[data-login-err]'); err.textContent = txt; err.hidden = !txt; };
+  try { cf.email.value = localStorage.getItem('cx-painel-email') || ''; } catch (e) {}
+  async function postAuth(acao, dados) {
+    try {
+      const r = await fetch(`../api/auth/${acao}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) });
+      const b = await r.json().catch(() => null);
+      return { ok: r.ok, erro: (b && b.erro) || (r.ok ? '' : 'falhou') };
+    } catch (e) { return { ok: false, erro: 'rede' }; }
+  }
+  function passoCodigo(on) {
+    $$('[data-passo-codigo]', cf).forEach(x => { x.hidden = !on; });
+    $('[data-passo-email]', cf).hidden = on;
+    cfBtn.textContent = on ? 'Entrar' : 'Receber código';
+    if (on) { cf.codigo.value = ''; cf.codigo.focus(); } else cf.email.focus();
+  }
+  function contaReenvio() {
+    clearInterval(tReenvio);
+    let falta = 60;
+    reenviar.disabled = true;
+    const passo = () => { reenviar.textContent = falta > 0 ? `Reenviar em ${falta}s` : 'Reenviar código'; if (falta-- <= 0) { reenviar.disabled = false; clearInterval(tReenvio); } };
+    passo(); tReenvio = setInterval(passo, 1000);
+  }
+  async function pedeCodigo(email) {
+    const r = await postAuth('codigo', { email });
+    if (!r.ok) { erroLogin(r.erro === 'rede' ? ERRO_LOGIN.sem_conexao : ERRO_COD[r.erro] || 'Não deu certo agora. Tente de novo.'); return false; }
+    $('[data-codigo-dica]').textContent = `Se ${email} for da equipe, o código chega em instantes. Olhe também o spam e as promoções. Ele vale por poucos minutos.`;
+    contaReenvio();
+    return true;
+  }
+  cf.addEventListener('submit', async e => {
+    e.preventDefault();
+    erroLogin('');
+    if (cfBtn.getAttribute('aria-busy') === 'true') return;
+    if (!emailCodigo) {
+      const email = cf.email.value.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { erroLogin('Digite o e-mail completo, por exemplo nome@gmail.com.'); cf.email.focus(); return; }
+      cfBtn.setAttribute('aria-busy', 'true');
+      const foi = await pedeCodigo(email);
+      cfBtn.removeAttribute('aria-busy');
+      if (!foi) return;
+      emailCodigo = email;
+      try { localStorage.setItem('cx-painel-email', email); } catch (ex) {}
+      passoCodigo(true);
+      return;
+    }
+    const codigo = cf.codigo.value.replace(/\D/g, '');
+    if (codigo.length < 6) { erroLogin('Digite os 6 números do código.'); cf.codigo.focus(); return; }
+    cfBtn.setAttribute('aria-busy', 'true');
+    const r = await postAuth('codigo_entrar', { email: emailCodigo, codigo });
+    cfBtn.removeAttribute('aria-busy');
+    if (!r.ok) { erroLogin(r.erro === 'rede' ? ERRO_LOGIN.sem_conexao : ERRO_COD[r.erro] || 'Não deu certo agora. Tente de novo.'); cf.codigo.select(); return; }
+    clearInterval(tReenvio);
+    emailCodigo = ''; passoCodigo(false);
+    inicia();
+  });
+  // colou ou digitou os 6 números: entra sozinho
+  cf.codigo.addEventListener('input', () => { if (cf.codigo.value.replace(/\D/g, '').length === 6) cf.requestSubmit(); });
+  reenviar.addEventListener('click', async () => { erroLogin(''); reenviar.disabled = true; if (!(await pedeCodigo(emailCodigo))) reenviar.disabled = false; else cf.codigo.focus(); });
+  $('[data-trocar-email]').addEventListener('click', () => { clearInterval(tReenvio); emailCodigo = ''; erroLogin(''); passoCodigo(false); });
   // o que falta ligar na Vercel (a API só conta se está ligado ou não; segredo nenhum passa por aqui)
   function mostraConfig(est) {
     const passo = (nome, ok, txt) => { const li = $(`[data-passo="${nome}"]`); li.classList.toggle('ok', ok); $('span', li).textContent = txt; };
@@ -655,7 +732,8 @@
       $('[data-passos]').hidden = true;
     } else {
       passo('banco', est.banco, est.banco ? 'Ligado.' : 'Falta ligar o Postgres (Neon) na aba Storage do projeto na Vercel.');
-      passo('login', est.login, est.login ? 'Configurado.' : 'Falta criar o app "Sign in with Vercel" e salvar o ID e o segredo dele nas variáveis do projeto.');
+      const algum = est.login || est.codigo;
+      passo('login', algum, algum ? [est.codigo && 'Código por e-mail ligado.', est.login && 'Conta da Vercel ligada.'].filter(Boolean).join(' ') : 'Falta ligar o login do Neon (Auth) no banco ou as chaves do app da Vercel.');
       $('[data-retorno]').textContent = est.retorno;
     }
     mostraTela('config');
@@ -688,16 +766,21 @@
     vaiPara(location.hash.slice(1) || 'quadro');
   }
 
-  (async () => {
-    // a volta do login traz ?erro=... (e o e-mail, quando a conta não é da equipe); sai do endereço depois de lido
+  async function inicia() {
+    // a volta do login da Vercel traz ?erro=... (e o e-mail, quando a conta não é da equipe); sai do endereço depois de lido
     const q = new URLSearchParams(location.search);
     const erro = q.get('erro') || '', emailNegado = q.get('email') || '';
     if (location.search) history.replaceState(null, '', location.pathname + location.hash);
     let est = null;
     try { const r = await fetch('../api/auth/estado', { cache: 'no-store' }); if (r.ok) est = await r.json(); } catch (e) {}
-    if (!est || !est.banco || (!est.login && !est.dev)) return mostraConfig(est);
+    if (!est || !est.banco || (!est.login && !est.codigo && !est.dev)) return mostraConfig(est);
     $('[data-dev]').hidden = !est.dev;
+    cf.hidden = !est.codigo;
+    $('[data-entrar]').hidden = !est.login;
+    $('[data-ou]').hidden = !(est.codigo && est.login);
+    if (!est.codigo) $('[data-login-txt]').textContent = 'Área da equipe. Entre com a sua conta da Vercel: o painel confere se o e-mail dela está na equipe da loja.';
     if (erro === 'sem_acesso') { $('[data-negado-email]').textContent = emailNegado || 'desta conta'; return mostraTela('negado'); }
     if (est.eu) entra(est.eu); else mostraLogin(erro);
-  })();
+  }
+  inicia();
 })();

@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="preload" href="../assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/app.css?v=1">
-<link rel="stylesheet" href="admin.css?v=3">
+<link rel="stylesheet" href="admin.css?v=4">
 </head>
 <body>
 <svg class="sprite" aria-hidden="true">
@@ -45,7 +45,7 @@
     <p class="muted" data-cfg-msg>O site já está no ar. Para os pedidos pelo site e o painel funcionarem, falta isto na Vercel:</p>
     <ul class="passos" data-passos>
       <li data-passo="banco"><b>Banco de pedidos</b><span>Conferindo…</span></li>
-      <li data-passo="login"><b>Login com a Vercel</b><span>Conferindo…</span></li>
+      <li data-passo="login"><b>Login da equipe</b><span>Conferindo…</span></li>
     </ul>
     <p class="muted small">Endereço de retorno do login (vai no app da Vercel): <code data-retorno></code></p>
     <p class="muted small">Passo a passo completo no arquivo <code>banco/LEIA-ME.md</code> do repositório do site.</p>
@@ -58,9 +58,26 @@
   <div class="card gate">
     <img src="../assets/img/icon-96.webp" width="56" height="56" alt="">
     <h1 class="display">Painel da Coxitas</h1>
-    <p class="muted">Área da equipe. Entre com a sua conta da Vercel: o painel confere se o e-mail dela está na equipe da loja. Nenhuma senha passa por este site.</p>
+    <p class="muted" data-login-txt>Área da equipe. Digite o seu e-mail: chega um código de 6 números para entrar. Sem senha.</p>
     <p class="alert" data-login-err role="alert" hidden></p>
-    <a class="btn btn-vercel" href="../api/auth/entrar" data-entrar><svg class="ico" aria-hidden="true"><use href="#i-vercel"/></svg>Entrar com a Vercel</a>
+    <form class="login-codigo" data-codigo-form novalidate>
+      <div class="field" data-passo-email>
+        <label for="l-email">E-mail da equipe</label>
+        <input class="input" id="l-email" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="120">
+      </div>
+      <div class="field" data-passo-codigo hidden>
+        <label for="l-codigo">Código que chegou no e-mail</label>
+        <input class="input codigo" id="l-codigo" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="000000">
+        <small class="muted" data-codigo-dica></small>
+      </div>
+      <button class="btn" type="submit" data-codigo-btn>Receber código</button>
+      <div class="login-links" data-passo-codigo hidden>
+        <button class="link" type="button" data-reenviar disabled>Reenviar código</button>
+        <button class="link" type="button" data-trocar-email>Trocar e-mail</button>
+      </div>
+    </form>
+    <p class="ou" data-ou hidden><span>ou</span></p>
+    <a class="btn btn-line" href="../api/auth/entrar" data-entrar hidden><svg class="ico" aria-hidden="true"><use href="#i-vercel"/></svg>Entrar com a conta da Vercel</a>
     <form class="dev" data-dev hidden novalidate>
       <p class="note">Só no computador de teste: entrar sem a Vercel.</p>
       <input class="input" name="email" type="email" placeholder="E-mail da equipe" aria-label="E-mail da equipe" autocomplete="off">
@@ -76,8 +93,8 @@
     <img src="../assets/img/icon-96.webp" width="56" height="56" alt="">
     <h1 class="display">Esta conta não tem acesso</h1>
     <p class="muted">O login com a Vercel deu certo, mas o e-mail <b data-negado-email></b> não está na equipe da loja.</p>
-    <p class="muted">Peça para o dono incluir este e-mail em <b>Loja › Equipe</b>. Se você tem outra conta da Vercel, saia desta em vercel.com e entre de novo.</p>
-    <a class="btn btn-line" href="../api/auth/entrar">Entrar de novo</a>
+    <p class="muted">Peça para o dono incluir este e-mail em <b>Loja › Equipe</b>. Ou entre com o código no e-mail que está na equipe.</p>
+    <a class="btn btn-line" href="./">Voltar para o login</a>
     <a class="link back" href="../">Voltar para o site</a>
   </div>
 </main>
@@ -190,12 +207,12 @@
       </form>
       <div class="card equipe-box" data-equipe-box hidden>
         <h3>Equipe</h3>
-        <p class="muted">Quem pode abrir o painel. Cada pessoa entra com a própria conta da Vercel (é grátis) que usa este mesmo e-mail. Atendente vê e atende os pedidos; dono também muda a loja e a equipe.</p>
+        <p class="muted">Quem pode abrir o painel. Cada pessoa entra com um código que chega neste e-mail (ou com a conta da Vercel do mesmo e-mail). Atendente vê e atende os pedidos; dono também muda a loja e a equipe.</p>
         <ul class="equipe" data-equipe></ul>
         <form class="equipe-add" data-equipe-form novalidate>
           <div class="grid2">
             <div class="field"><label for="e-nome">Nome</label><input class="input" id="e-nome" name="nome" maxlength="60" autocomplete="off"></div>
-            <div class="field"><label for="e-email">E-mail da conta da Vercel</label><input class="input" id="e-email" name="email" type="email" maxlength="120" autocomplete="off" spellcheck="false"></div>
+            <div class="field"><label for="e-email">E-mail</label><input class="input" id="e-email" name="email" type="email" maxlength="120" autocomplete="off" spellcheck="false"></div>
           </div>
           <label class="check"><input type="checkbox" name="dono"><span>Também é dono (pode mudar a loja e a equipe)</span></label>
           <p class="alert" data-equipe-err role="alert" hidden></p>
@@ -227,6 +244,6 @@
 
 <p class="center muted" data-v="carregando">Carregando…</p>
 
-<script src="admin.js?v=3"></script>
+<script src="admin.js?v=4"></script>
 </body>
 </html>

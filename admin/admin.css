@@ -111,8 +111,13 @@ code{padding:1px 6px;border-radius:6px;background:rgba(255,241,222,.08);font-siz
 .equipe-add .btn{justify-self:start}
 
 /* entrada */
-.btn-vercel{background:var(--cream);color:var(--ink)}
-.btn-vercel:hover{background:#fff;color:var(--ink)}
+.login-codigo{display:grid;gap:12px}
+.login-codigo small{display:block;margin-top:6px;font-size:13.5px;line-height:1.45}
+.input.codigo{font:700 26px/1 var(--f-text);letter-spacing:.32em;text-align:center;font-variant-numeric:tabular-nums}
+.login-links{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.login-links .link:disabled{opacity:.5;cursor:default;text-decoration:none}
+.ou{display:flex;align-items:center;gap:12px;margin:2px 0;color:var(--text-3);font-size:13px}
+.ou::before,.ou::after{content:"";flex:1;height:1px;background:var(--line)}
 .dev{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
 .passos{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 .passos li{position:relative;display:grid;gap:2px;padding:10px 12px 10px 36px;border:1px solid var(--line);border-radius:12px;background:var(--card-2);font-size:14.5px}
