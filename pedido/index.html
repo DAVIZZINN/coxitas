@@ -14,7 +14,7 @@
 <link rel="preload" href="../assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/app.css?v=1">
-<link rel="stylesheet" href="../assets/pedido.css?v=1">
+<link rel="stylesheet" href="../assets/pedido.css?v=2">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -58,7 +58,9 @@
       <span class="st" data-ped-st></span>
     </div>
     <p class="ped-msg" data-ped-msg></p>
+    <div class="cena" data-cena aria-hidden="true"></div>
     <p class="cancel" data-ped-cancel hidden><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg><span>Este pedido foi cancelado. Se tiver dúvida, fale com a Coxitas pelo WhatsApp.</span></p>
+    <button class="btn btn-line btn-sm avisos" type="button" data-avisos aria-pressed="false" hidden>Me avisar quando o pedido mudar</button>
     <ol class="steps" data-steps aria-label="Andamento do pedido"></ol>
     <div class="card box">
       <h2>Itens</h2>
@@ -75,7 +77,8 @@
   <p class="loading muted" data-loading hidden>Carregando o pedido…</p>
 </main>
 
-<script src="../assets/pedido.js?v=2" defer></script>
+<script src="../assets/cena.js?v=2" defer></script>
+<script src="../assets/pedido.js?v=3" defer></script>
 <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

@@ -46,12 +46,40 @@
     const d = new Date(Date.now() + LOJA.utc * 3600e3);
     return { dia: d.getUTCDay(), min: d.getUTCHours() * 60 + d.getUTCMinutes() };
   }
+  // [abre, fecha] em minutos, de domingo a sábado (null = fechado o dia todo). Começa com o LOJA.horarios e passa a valer
+  // o horário do painel assim que a configuração chega da API
+  let HOR = LOJA.horarios.map(h => (h ? [h[0] * 60, h[1] * 60] : null));
+  const DIA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  const hm = m => `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
+  const abertoEm = (h, min) => !!h && (h[0] <= h[1] ? min >= h[0] && (min < h[1] || h[1] >= 1439) : min >= h[0] || min < h[1]);
   function situacao() {
     const { dia, min } = agora();
-    const [abre, fecha] = LOJA.horarios[dia];
-    if (min >= abre * 60 && min < fecha * 60) return { dia, aberto: true, texto: `Aberto agora · até ${fecha}h` };
-    if (min < abre * 60) return { dia, aberto: false, texto: `Fechado agora · abre às ${abre}h` };
-    return { dia, aberto: false, texto: `Fechado agora · abre amanhã às ${LOJA.horarios[(dia + 1) % 7][0]}h` };
+    const h = HOR[dia];
+    if (abertoEm(h, min)) return { dia, aberto: true, texto: `Aberto agora · até ${h[1] >= 1439 ? 'meia-noite' : hm(h[1])}` };
+    if (h && min < h[0]) return { dia, aberto: false, texto: `Fechado agora · abre às ${hm(h[0])}`, abre: `hoje às ${hm(h[0])}` };
+    for (let k = 1; k <= 7; k++) {
+      const d = (dia + k) % 7, x = HOR[d];
+      if (x) { const q = k === 1 ? 'amanhã' : DIA[d]; return { dia, aberto: false, texto: `Fechado agora · abre ${q} às ${hm(x[0])}`, abre: `${q} às ${hm(x[0])}` }; }
+    }
+    return { dia, aberto: false, texto: 'Fechado agora', abre: '' };
+  }
+  // tabela de horários do rodapé, montada do horário que vale (dias iguais em sequência viram uma linha só)
+  function renderHorarios() {
+    const tb = $('.hours tbody') || $('.hours');
+    if (!tb) return;
+    const NOME = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const txt = h => (h ? `${hm(h[0])} às ${h[1] >= 1439 ? '0h' : hm(h[1])}` : 'Fechado');
+    const grupos = [];
+    [1, 2, 3, 4, 5, 6, 0].forEach(d => { const t = txt(HOR[d]), g = grupos[grupos.length - 1]; if (g && g.t === t) g.dias.push(d); else grupos.push({ t, dias: [d] }); });
+    $$('tr', tb).forEach(tr => tr.remove());
+    grupos.forEach(g => {
+      const tr = document.createElement('tr'), th = document.createElement('th'), td = document.createElement('td');
+      tr.dataset.days = g.dias.join(','); th.scope = 'row';
+      const a = NOME[g.dias[0]], b = NOME[g.dias[g.dias.length - 1]].toLowerCase();
+      th.textContent = g.dias.length === 1 ? a : g.dias.length === 2 ? `${a} e ${b}` : `${a} a ${b}`;
+      td.textContent = g.t;
+      tr.append(th, td); tb.appendChild(tr);
+    });
   }
   function updateStatus() {
     let s;
@@ -62,7 +90,8 @@
       const t = $('[data-status-text]', el);
       if (t) t.textContent = s.texto;
     });
-    $$('.hours tr').forEach(tr => tr.classList.toggle('today', tr.dataset.days.split(',').includes(String(s.dia))));
+    $$('.hours tr').forEach(tr => tr.classList.toggle('today', (tr.dataset.days || '').split(',').includes(String(s.dia))));
+    try { syncFechado(); } catch (e) {}   // na abertura a parte do pedido ainda não existe: ela chama sozinha depois
   }
   updateStatus();
   setInterval(updateStatus, 60000);
@@ -594,15 +623,61 @@
   let lojaEm = 0, feito = null, enviando = false;
   const modalidade = () => { const r = $('input[name=modalidade]:checked', form); return r ? r.value : 'entrega'; };
   const pagSel = () => { const r = $('input[name=pagamento]:checked', form); return r ? r.value : ''; };
-  const usaBanco = () => API === true && loja.aceitando_pedidos !== false;
-  const taxaAtual = () => (modalidade() === 'retirada' ? 0 : loja.taxa_entrega_centavos);   // null = a combinar
+  const usaBanco = () => API === true;
+  // fora do horário, ou com os pedidos pausados no painel, o site só mostra o cardápio
+  const pausada = () => API === true && loja.aceitando_pedidos === false;
+  const podePedir = () => { let st = null; try { st = situacao(); } catch (e) {} return (!st || st.aberto) && !pausada(); };
+  const faixas = () => (Array.isArray(loja.taxas_entrega) ? loja.taxas_entrega : []);
+  // taxa: 0 na retirada e acima do valor de entrega grátis; pela distância depois que a rua é conferida;
+  // undefined = ainda sem endereço conferido; null = a combinar
+  const taxaAtual = () => {
+    if (modalidade() === 'retirada') return 0;
+    const gratis = loja.entrega_gratis_acima_centavos;
+    if (usaBanco() && gratis != null && total() >= gratis) return 0;
+    if (!usaBanco()) return loja.taxa_entrega_centavos;
+    if (geo.estado === 'ok' && geo.taxa !== undefined) return geo.taxa;
+    return faixas().length ? undefined : loja.taxa_entrega_centavos;
+  };
+  function renderTaxas() {
+    const el = $('[data-taxas]', form), f = faixas();
+    let t = f.length ? `. Taxa: ${f.map(x => `até ${kmTxt(x.ate_km)} km ${x.centavos ? fmtTxt(x.centavos) : 'grátis'}`).join(', ')}` : '';
+    if (f.length && loja.entrega_gratis_acima_centavos != null) t += `; grátis acima de ${fmtTxt(loja.entrega_gratis_acima_centavos)}`;
+    el.textContent = t;
+  }
+  const menuFechado = $('[data-menu-fechado]');
+  function syncFechado() {
+    const pode = podePedir();
+    root.classList.toggle('loja-fechada', !pode);
+    let st = null; try { st = situacao(); } catch (e) {}
+    $('span', menuFechado).textContent = pode ? '' : pausada()
+      ? `Os pedidos pelo site estão pausados agora${loja.mensagem_pausa ? `: ${loja.mensagem_pausa}` : '.'} Dá para ver o cardápio à vontade.`
+      : `${st ? st.texto : 'Fechado agora'}. Dá para ver o cardápio; os pedidos pelo site voltam ${st && st.abre ? st.abre : 'quando a loja abrir'}.`;
+    menuFechado.hidden = pode;
+    avisoLoja();
+  }
+  // com a loja fechada, "Adicionar" só avisa (o clique não chega no botão)
+  document.addEventListener('click', e => {
+    if (podePedir() || !e.target.closest('.prod [data-add], .prod .qty [data-inc]')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    menuFechado.classList.remove('pisca'); void menuFechado.offsetWidth; menuFechado.classList.add('pisca');
+    if (menuFechado.getBoundingClientRect().top < 60 || menuFechado.getBoundingClientRect().bottom > VH) menuFechado.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'center' });
+    say($('span', menuFechado).textContent);
+  }, true);
 
   async function carregarLoja(forca) {
     if (!forca && (API === false || (API === true && Date.now() - lojaEm < 120000))) return;
     try {
       const c = await api('config');
       API = true;
-      if (c) { loja = { ...loja, ...c }; lojaEm = Date.now(); montaPagamentos(); renderResumo(); avisoLoja(); $('[data-raio]', form).textContent = kmTxt(loja.raio_entrega_km || 12); }
+      if (c) {
+        loja = { ...loja, ...c }; lojaEm = Date.now();
+        if (Array.isArray(c.horarios) && c.horarios.length === 7) {
+          const novo = c.horarios.map(d => (Array.isArray(d) ? d.map(t => +String(t).slice(0, 2) * 60 + +String(t).slice(3, 5)) : null));
+          if (JSON.stringify(novo) !== JSON.stringify(HOR)) { HOR = novo; renderHorarios(); updateStatus(); }
+        }
+        montaPagamentos(); renderTaxas(); renderResumo(); avisoLoja(); syncFechado();
+        $('[data-raio]', form).textContent = kmTxt(loja.raio_entrega_km || 12);
+      }
     } catch (e) {
       // sem API (site aberto fora da Vercel) ou sem banco ligado: o pedido vai pelo WhatsApp
       if (e && (e.status === 404 || e.status === 405 || e.status === 503)) { API = false; avisoLoja(); }
@@ -624,31 +699,27 @@
     syncPagamento();
   }
   function renderResumo() {
-    const sub = total(), tx = taxaAtual();
+    const sub = total(), tx = taxaAtual(), ret = modalidade() === 'retirada';
     $('[data-sum-sub]', dlg).textContent = fmt(sub);
-    $('[data-sum-fee]', dlg).textContent = modalidade() === 'retirada' ? 'grátis (retirada)' : tx == null ? 'a combinar' : tx === 0 ? 'grátis' : fmt(tx);
-    $('[data-sum-total]', dlg).textContent = fmt(sub + (tx || 0));
-    $('[data-total-note]', dlg).textContent = tx == null
-      ? 'Entrega a combinar com a Coxitas (o total é só dos itens). Você paga na entrega.'
-      : `Você paga ${modalidade() === 'retirada' ? 'na retirada' : 'na entrega'}.`;
+    $('[data-sum-fee-label]', dlg).textContent = !ret && geo.estado === 'ok' && geo.km != null ? `Entrega (${kmTxt(geo.km)} km)` : 'Entrega';
+    $('[data-sum-fee]', dlg).textContent = ret ? 'grátis (retirada)' : tx === undefined ? 'pela distância' : tx === null ? 'a combinar' : tx === 0 ? 'grátis' : fmt(tx);
+    $('[data-sum-total]', dlg).textContent = fmt(sub + (tx || 0)) + (tx === undefined ? ' + entrega' : '');
+    $('[data-total-note]', dlg).textContent = tx === undefined
+      ? 'A taxa de entrega aparece assim que a rua for conferida no mapa.'
+      : tx === null ? 'Entrega a combinar com a Coxitas (o total é só dos itens). Você paga na entrega.'
+      : `Você paga ${ret ? 'na retirada' : 'na entrega'}.`;
   }
   function avisoLoja() {
     const el = $('[data-order-alert]', form);
     let txt = '', stop = false;
-    if (API && loja.aceitando_pedidos === false) {
-      txt = `Os pedidos pelo site estão pausados agora${loja.mensagem_pausa ? `: ${loja.mensagem_pausa}` : '.'} Você ainda pode mandar o pedido pelo WhatsApp.`;
-      stop = true;
-    } else {
-      let st = null;
-      try { st = situacao(); } catch (e) {}
-      if (st && !st.aberto) txt = `${st.texto}. Pode mandar o pedido agora: a Coxitas vê assim que abrir.`;
-    }
+    if (!podePedir()) { txt = $('span', menuFechado).textContent || 'A loja está fechada agora.'; stop = true; }
     el.textContent = txt; el.hidden = !txt; el.classList.toggle('is-stop', stop);
     modoEnvio();
   }
   function modoEnvio() {
-    const banco = usaBanco();
-    $('[data-submit-label]', dlg).textContent = enviando ? 'Enviando…' : banco ? 'Confirmar pedido' : 'Enviar pedido pelo WhatsApp';
+    const banco = usaBanco(), pode = podePedir();
+    submitBtn.setAttribute('aria-disabled', String(!pode));
+    $('[data-submit-label]', dlg).textContent = enviando ? 'Enviando…' : !pode ? 'Loja fechada agora' : banco ? 'Confirmar pedido' : 'Enviar pedido pelo WhatsApp';
     $('use', submitBtn).setAttribute('href', banco ? '#i-check' : '#i-wa');
     submitBtn.classList.toggle('btn-wa', !banco);
   }
@@ -688,7 +759,7 @@
     endStatus.hidden = !txt;
   }
   function textoEnd(g) {
-    if (g.estado === 'ok') return `${g.rua} fica a ${kmTxt(g.km)} km da loja: dentro da área de entrega.`;
+    if (g.estado === 'ok') return `${g.rua} fica a ${kmTxt(g.km)} km da loja: dentro da área de entrega${g.taxa == null ? '' : g.taxa === 0 ? ', com entrega grátis' : `, taxa de ${fmtTxt(g.taxa)}`}.`;
     if (g.estado === 'fora') return `Esse endereço fica a ${kmTxt(g.km)} km da loja e a Coxitas entrega até ${kmTxt(g.raio)} km. Escolha "Retirar na loja" ou fale pelo WhatsApp.`;
     if (g.estado === 'nao') return 'Não achamos essa rua em Votuporanga. Confira o nome (ex.: Rua Amazonas, Avenida Brasil).';
     return 'Não deu para conferir a rua no mapa agora. Tente de novo em instantes.';
@@ -707,19 +778,19 @@
       let g;
       try {
         const r = await api('endereco', { rua });
-        g = { chave: ch, estado: 'ok', km: r.km, raio: r.raio, rua: r.rua };
+        g = { chave: ch, estado: 'ok', km: r.km, raio: r.raio, rua: r.rua, taxa: r.taxa_centavos };
       } catch (err) {
         const c = err && err.code, [km, raio] = String((err && err.detalhe) || '').split('|');
         g = { chave: ch, estado: c === 'fora_da_area' ? 'fora' : c === 'endereco_nao_encontrado' ? 'nao' : 'erro', km, raio };
       }
-      if (geo.chave === ch) { geo = g; mostraEnd(g.estado === 'ok' ? 'ok' : g.estado === 'fora' ? 'fora' : 'erro', textoEnd(g)); }
+      if (geo.chave === ch) { geo = g; mostraEnd(g.estado === 'ok' ? 'ok' : g.estado === 'fora' ? 'fora' : 'erro', textoEnd(g)); renderResumo(); }
       geoBusca = null;
       return g;
     })();
     return geoBusca;
   }
   form.rua.addEventListener('change', () => confereEnd());
-  form.rua.addEventListener('input', () => { if (geo.chave && geo.chave !== chaveRua(form.rua.value)) { geo = { chave: '', estado: '' }; mostraEnd('', ''); } });
+  form.rua.addEventListener('input', () => { if (geo.chave && geo.chave !== chaveRua(form.rua.value)) { geo = { chave: '', estado: '' }; mostraEnd('', ''); renderResumo(); } });
 
   const campos = { nome: [form.nome, $('#e-nome')], telefone: [form.telefone, $('#e-tel')], rua: [form.rua, $('#e-rua')], numero: [form.numero, $('#e-num')], bairro: [form.bairro, $('#e-bairro')], pagamento: [$('.pay', form), $('#e-pag')], troco: [form.troco, $('#e-troco')] };
   function marca(nome, msg) {
@@ -818,7 +889,8 @@
   }
 
   const ERROS = {
-    loja_pausada: d => `Os pedidos pelo site estão pausados agora${d ? `: ${d}` : ''}. Mande pelo WhatsApp.`,
+    loja_pausada: d => `Os pedidos pelo site estão pausados agora${d ? `: ${d}` : ''}.`,
+    loja_fechada: 'A loja está fechada agora. Os pedidos pelo site voltam no horário de funcionamento.',
     sem_banco: 'Os pedidos pelo site estão fora do ar agora. Mande pelo WhatsApp.',
     dados_invalidos: 'Confira os dados do pedido.',
     nome_invalido: 'Confira o seu nome.',
@@ -845,7 +917,8 @@
     waFallback.href = waURL(pedidoTexto(o));
     waFallback.hidden = false;
     say(formErr.textContent);
-    if (err && (err.code === 'pagamento_invalido' || err.code === 'loja_pausada')) carregarLoja(true);
+    if (err && (err.code === 'loja_fechada' || err.code === 'loja_pausada')) waFallback.hidden = true;   // fechada: nem pelo WhatsApp
+    if (err && (err.code === 'pagamento_invalido' || err.code === 'loja_pausada' || err.code === 'loja_fechada')) carregarLoja(true);
   }
   function limpaErro() { formErr.hidden = true; waFallback.hidden = true; }
   waFallback.addEventListener('click', () => { sent.hidden = false; $('[data-sent-link]', dlg).href = waFallback.href; });
@@ -861,6 +934,7 @@
   form.addEventListener('submit', async e => {
     e.preventDefault();
     if (!count() || enviando) return;
+    if (!podePedir()) { avisoLoja(); say($('[data-order-alert]', form).textContent); return; }
     limpaErro();
     sent.hidden = true;
     const v = valida();
@@ -959,24 +1033,58 @@
     let p;
     try { p = await api('acompanhar', { numero: String(ult.n), codigo: ult.c }); }
     catch (e) { return e && (e.status === 404 || e.status === 405 || e.status === 503) ? escondeVivo() : escondeVivo(120000); }
-    if (!p || p.erro || p.status === 'cancelado') return escondeVivo();
-    const fim = p.status === 'concluido';
-    if (fim && Date.now() - new Date(p.atualizado_em || p.criado_em).getTime() > 40 * 60000) return escondeVivo();
+    if (!p || p.erro) return escondeVivo();
+    const cancelado = p.status === 'cancelado', fim = p.status === 'concluido' || cancelado;
+    const desde = Date.now() - new Date(p.atualizado_em || p.criado_em).getTime();
+    if (fim && desde > (cancelado ? 3 * 3600e3 : 40 * 60000)) return escondeVivo();
     vivoAgora = `${p.numero}|${p.status}`;
+    avisaMudanca(p);
     let fechado = ''; try { fechado = sessionStorage.getItem('cx-vivo-fechado') || ''; } catch (e) {}
     if (fechado === vivoAgora) return escondeVivo(fim ? 0 : 60000);   // a pessoa escondeu: volta quando o status mudar
-    const st = fim && p.modalidade === 'retirada' ? 'Retirado. Bom apetite!' : ST_VIVO[p.status] || 'Acompanhe o seu pedido';
+    const st = cancelado ? 'Pedido cancelado · toque para ver' : fim && p.modalidade === 'retirada' ? 'Retirado. Bom apetite!' : ST_VIVO[p.status] || 'Acompanhe o seu pedido';
     const link = $('[data-vivo-link]', vivo);
     link.href = `pedido/?n=${encodeURIComponent(p.numero)}&c=${encodeURIComponent(ult.c)}`;
     link.setAttribute('aria-label', `Pedido nº ${p.numero}: ${st}. Abrir o acompanhamento.`);
     $('[data-vivo-num]', vivo).textContent = `Seu pedido nº ${p.numero}`;
     $('[data-vivo-st]', vivo).textContent = st;
-    $('.vivo-ico use', vivo).setAttribute('href', fim ? '#i-check' : p.modalidade === 'retirada' ? '#i-bag' : '#i-moto');
+    $('.vivo-ico use', vivo).setAttribute('href', cancelado ? '#i-close' : fim ? '#i-check' : p.modalidade === 'retirada' ? '#i-bag' : '#i-moto');
     const passo = PASSO_VIVO[p.status] || 0;
     $$('.vivo-passos i', vivo).forEach((i, k) => { i.className = fim || k < passo ? 'ok' : k === passo ? 'atual' : ''; });
-    vivo.classList.toggle('fim', fim);
+    vivo.classList.toggle('fim', fim && !cancelado);
+    vivo.classList.toggle('cancelado', cancelado);
     if (vivo.hidden) { vivo.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => vivo.classList.add('show'))); }
-    if (!fim) tVivo = setTimeout(confereVivo, document.hidden ? 120000 : 45000);
+    if (!fim) tVivo = setTimeout(confereVivo, document.hidden ? 60000 : 20000);
+  }
+  // mudou a etapa desde a última vez que este aparelho viu? toca (recusado toca forte) e avisa no celular
+  let somCtx = null;
+  addEventListener('pointerdown', () => { try { somCtx = somCtx || new (window.AudioContext || window.webkitAudioContext)(); if (somCtx.state === 'suspended') somCtx.resume(); } catch (e) {} }, { passive: true });
+  function toca(notas) {
+    if (!somCtx || somCtx.state !== 'running') return;
+    const t0 = somCtx.currentTime;
+    notas.forEach(([f, dt, dur, tipo]) => {
+      const o = somCtx.createOscillator(), g = somCtx.createGain();
+      o.type = tipo || 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + dt); g.gain.exponentialRampToValueAtTime(0.5, t0 + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + dur);
+      o.connect(g).connect(somCtx.destination); o.start(t0 + dt); o.stop(t0 + dt + dur + 0.02);
+    });
+  }
+  function avisaMudanca(p) {
+    let visto = ''; try { visto = localStorage.getItem('cx-vivo-visto') || ''; } catch (e) {}
+    const agora = `${p.numero}|${p.status}`;
+    if (visto === agora) return;
+    try { localStorage.setItem('cx-vivo-visto', agora); } catch (e) {}
+    if (!visto.startsWith(`${p.numero}|`)) return;   // primeira vez que vê este pedido: sem barulho
+    try { sessionStorage.removeItem('cx-vivo-fechado'); } catch (e) {}
+    const cancel = p.status === 'cancelado';
+    if (cancel) toca([[880, 0, .22, 'square'], [660, .26, .22, 'square'], [880, .52, .22, 'square'], [660, .78, .35, 'square']]);
+    else toca([[784, 0, .16], [1046, .17, .28]]);
+    try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(cancel ? [300, 120, 300, 120, 500] : [120, 60, 120]); } catch (e) {}
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(cancel ? `Pedido nº ${p.numero} foi cancelado` : `Pedido nº ${p.numero}: ${ST_VIVO[p.status] || 'atualizado'}`,
+          { body: cancel ? (p.motivo || 'Toque para ver os detalhes.') : 'Toque para acompanhar.', icon: 'assets/img/icon-192.png', tag: `cx-pedido-${p.numero}` });
+      }
+    } catch (e) {}
   }
   $('[data-vivo-x]', vivo).addEventListener('click', () => {
     try { sessionStorage.setItem('cx-vivo-fechado', vivoAgora); } catch (e) {}
@@ -984,7 +1092,8 @@
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && meusPedidos().length) confereVivo(); });
   // depois que a página terminou de abrir (não atrapalha o carregamento)
-  const vivoDepois = () => idle(() => setTimeout(confereVivo, 800));
+  syncFechado();
+  const vivoDepois = () => idle(() => setTimeout(() => { carregarLoja(); confereVivo(); }, 800));
   if (document.readyState === 'complete') vivoDepois(); else window.addEventListener('load', vivoDepois, { once: true });
 
   /* ---------- galeria: foto ampliada ---------- */

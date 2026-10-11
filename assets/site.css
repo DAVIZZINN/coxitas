@@ -754,3 +754,17 @@ html.rm .bg-layer{transition:none!important}
 @keyframes onda{0%{transform:scale(.85);opacity:.7}70%,100%{transform:scale(1.25);opacity:0}}
 @media (max-width:420px){.vivo-ir{font-size:0;gap:0}.vivo-ir .ico{width:22px;height:22px}}
 .rm .vivo-ico::after,.rm .vivo-passos i.atual,.rm .end-status.is-conferindo .ico{animation:none}
+
+/* ---------- loja fechada: dá para ver o cardápio, não para pedir ---------- */
+.menu-fechado{display:flex;align-items:flex-start;gap:10px;max-width:640px;margin:0 auto 22px;padding:13px 16px;border-radius:16px;background:rgba(232,96,74,.1);border:1px solid rgba(232,96,74,.38);color:#FFD9CF;font-size:15px;line-height:1.45}
+.menu-fechado .ico{flex:none;width:20px;height:20px;margin-top:1px;color:#FF9C8A}
+.menu-fechado.pisca{animation:pisca .9s var(--ease-out)}
+@keyframes pisca{30%{transform:scale(1.03);border-color:#E8604A}}
+.loja-fechada .prod .add,.loja-fechada .prod .qty [data-inc]{opacity:.42;filter:grayscale(.6);cursor:not-allowed}
+.btn[data-submit][aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.vivo.cancelado .vivo-link{border-color:rgba(232,96,74,.7);background:linear-gradient(135deg,rgba(70,18,10,.97),rgba(40,10,6,.97))}
+.vivo.cancelado .vivo-ico{background:#E8604A;color:#fff}
+.vivo.cancelado .vivo-ico::after{border-color:#E8604A}
+.vivo.cancelado .vivo-passos{display:none}
+.vivo.cancelado .vivo-ir{color:#FFB9AC}
+.rm .menu-fechado.pisca{animation:none}

@@ -47,3 +47,77 @@
 .ped-actions .btn{width:100%}
 .small{font-size:13px;text-align:center}
 .loading{padding:40px 0;text-align:center}
+
+/* ---------- cena animada (assets/cena.js) ---------- */
+.cena{position:relative;overflow:hidden;border-radius:20px;background:radial-gradient(120% 100% at 50% 0%,#2E180B 0%,#1A0D06 72%);border:1px solid var(--line);box-shadow:inset 0 -30px 60px -40px rgba(0,0,0,.6)}
+.cena svg{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.cx-cena g,.cx-cena path,.cx-cena rect,.cx-cena circle{transform-box:fill-box;transform-origin:center}
+.cx-pula{animation:cxPula 1.6s ease-in-out infinite}
+@keyframes cxPula{50%{transform:translateY(-5px)}}
+.cx-pisca{animation:cxPisca 4.2s infinite}
+@keyframes cxPisca{0%,45%,51%,100%{transform:scaleY(1)}48%{transform:scaleY(.12)}}
+.cx-sino{transform-origin:50% 0;animation:cxSino 1.3s ease-in-out infinite}
+@keyframes cxSino{0%,80%,100%{transform:rotate(0)}12%{transform:rotate(16deg)}26%{transform:rotate(-13deg)}40%{transform:rotate(9deg)}54%{transform:rotate(-5deg)}68%{transform:rotate(2deg)}}
+.cx-ondas path{animation:cxOnda 1.3s ease-out infinite;opacity:0}
+.cx-ondas path:nth-child(2n){animation-delay:.15s}
+@keyframes cxOnda{10%{opacity:0}30%{opacity:1}90%,100%{opacity:0}}
+.cx-aceno{transform-origin:0 100%;animation:cxAceno .9s ease-in-out infinite alternate}
+.cx-aceno.b{transform-origin:100% 100%;animation-direction:alternate-reverse}
+@keyframes cxAceno{from{transform:rotate(-12deg)}to{transform:rotate(14deg)}}
+.cx-pop{animation:cxPop 2.4s var(--ease) infinite}
+@keyframes cxPop{0%{transform:scale(0)}18%{transform:scale(1.15)}28%,100%{transform:scale(1)}}
+.cx-joia{transform-origin:50% 100%;animation:cxJoia 1.2s ease-in-out infinite}
+@keyframes cxJoia{50%{transform:rotate(-12deg) translateY(-2px)}}
+.cx-brilho{animation:cxBrilho 1.8s ease-in-out infinite}
+.cx-brilho.b2{animation-delay:.6s}.cx-brilho.b3{animation-delay:1.2s}
+@keyframes cxBrilho{0%,100%{transform:scale(.3);opacity:0}50%{transform:scale(1);opacity:1}}
+.cx-mexe{transform-origin:12% 75%;animation:cxMexe .7s ease-in-out infinite alternate}
+@keyframes cxMexe{from{transform:rotate(-9deg)}to{transform:rotate(11deg)}}
+.cx-frita{animation:cxFrita 1.1s ease-in-out infinite}
+.cx-frita.f2{animation-delay:.3s}.cx-frita.f3{animation-delay:.6s}
+@keyframes cxFrita{50%{transform:translateY(-3px) rotate(-4deg)}}
+.cx-bolhas circle{animation:cxBolha 1.4s ease-out infinite;opacity:0}
+.cx-bolhas .b2{animation-delay:.35s}.cx-bolhas .b3{animation-delay:.7s}.cx-bolhas .b4{animation-delay:1.05s}
+@keyframes cxBolha{0%{transform:translateY(0) scale(.6);opacity:0}20%{opacity:1}100%{transform:translateY(-14px) scale(1.2);opacity:0}}
+.cx-vapor path{animation:cxVapor 2.4s ease-in-out infinite;opacity:0}
+.cx-vapor .v2{animation-delay:.8s}.cx-vapor .v3{animation-delay:1.6s}
+@keyframes cxVapor{0%{transform:translateY(8px);opacity:0}40%{opacity:.7}100%{transform:translateY(-10px);opacity:0}}
+.cx-cai{animation:cxCai 3.2s ease-in infinite;opacity:0}
+.cx-cai.c2{animation-delay:.25s}.cx-cai.c3{animation-delay:.5s}
+@keyframes cxCai{0%{transform:translateY(-34px);opacity:0}12%{opacity:1}30%,100%{transform:translateY(0);opacity:1}}
+.cx-tampa{transform-origin:50% 100%;animation:cxTampa 3.2s var(--ease) infinite}
+.cx-tampa.t2{animation-delay:.08s}
+@keyframes cxTampa{0%,45%{transform:scaleY(1)}65%,92%{transform:scaleY(-.22)}100%{transform:scaleY(1)}}
+.cx-cidade{animation:cxCidade 9s linear infinite}
+@keyframes cxCidade{to{transform:translateX(-320px)}}
+.cx-faixa path{animation:cxFaixa .55s linear infinite}
+@keyframes cxFaixa{to{transform:translateX(-34px)}}
+.cx-roda{animation:cxRoda .45s linear infinite}
+@keyframes cxRoda{to{transform:rotate(360deg)}}
+.cx-moto{animation:cxMoto .36s ease-in-out infinite alternate}
+@keyframes cxMoto{to{transform:translateY(-2px)}}
+.cx-vento path{animation:cxVento .8s linear infinite;opacity:0}
+.cx-vento path:nth-child(2){animation-delay:.25s}.cx-vento path:nth-child(3){animation-delay:.5s}
+@keyframes cxVento{0%{transform:translateX(14px);opacity:0}30%{opacity:.9}100%{transform:translateX(-24px);opacity:0}}
+.cx-farol{animation:cxFarol 2s ease-in-out infinite}
+@keyframes cxFarol{50%{opacity:.3}}
+.cx-confete rect{animation:cxConfete 3s linear infinite}
+.cx-confete .k1{animation-delay:.4s;animation-duration:3.4s}.cx-confete .k2{animation-delay:.9s}.cx-confete .k3{animation-delay:.2s;animation-duration:2.6s}
+.cx-confete .k4{animation-delay:1.3s}.cx-confete .k5{animation-delay:.6s;animation-duration:3.6s}.cx-confete .k6{animation-delay:1.8s}.cx-confete .k7{animation-delay:1.1s;animation-duration:2.8s}
+@keyframes cxConfete{0%{transform:translateY(0) rotate(0)}100%{transform:translateY(200px) rotate(540deg)}}
+.cx-coracao{animation:cxCoracao 1.6s ease-in-out infinite}
+@keyframes cxCoracao{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.18) translateY(-4px)}}
+.cx-nuvem{animation:cxNuvem 4s ease-in-out infinite alternate}
+@keyframes cxNuvem{to{transform:translateX(8px)}}
+.cx-chuva path{animation:cxChuva .9s linear infinite;opacity:0}
+.cx-chuva .g2{animation-delay:.3s}.cx-chuva .g3{animation-delay:.55s}.cx-chuva .g4{animation-delay:.15s}
+@keyframes cxChuva{0%{transform:translateY(0);opacity:0}20%{opacity:1}100%{transform:translateY(34px);opacity:0}}
+.rm .cx-cena *{animation:none!important}
+.rm .cx-ondas path,.rm .cx-bolhas circle,.rm .cx-vapor path,.rm .cx-vento path,.rm .cx-chuva path,.rm .cx-cai,.rm .cx-brilho{opacity:1}
+
+/* avisos e cancelamento */
+.avisos{justify-self:center}
+.avisos[aria-pressed=true]{border-color:rgba(76,208,138,.6);color:#BFF0D2}
+.cancel.alerta{animation:cxAlerta 1s ease-in-out 3}
+@keyframes cxAlerta{50%{background:rgba(232,96,74,.32);transform:scale(1.02)}}
+.rm .cancel.alerta{animation:none}

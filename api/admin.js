@@ -31,14 +31,15 @@ export default {
           // o que o painel confere a cada poucos segundos. A "marca" muda quando entra, muda ou some algum pedido; se o
           // painel já tem a marca atual, volta só "igual" (uma consulta pequena em vez de três)
           const m = (await q(`select (select count(*) from public.pedidos)::text || ':' || coalesce((select max(atualizado_em) from public.pedidos)::text, '-') as marca,
-            coalesce((select aceitando_pedidos from public.loja_config where id = 1), true) as aceitando`)).rows[0];
-          if (u.get('marca') === m.marca) return json(200, { marca: m.marca, aceitando: m.aceitando, igual: true });
+            coalesce((select aceitando_pedidos from public.loja_config where id = 1), true) as aceitando,
+            coalesce((select public.loja_no_horario(horarios) from public.loja_config where id = 1), true) as no_horario`)).rows[0];
+          if (u.get('marca') === m.marca) return json(200, { marca: m.marca, aceitando: m.aceitando, no_horario: m.no_horario, igual: true });
           const t = sim(u.get('teste'));
           const ativos = await um(`select public.admin_pedidos(p_status => $1::text[], p_teste => $2::boolean, p_limite => 200) as r`,
             [['novo', 'confirmado', 'em_preparo', 'pronto_retirada', 'saiu_entrega'], t]);
           const fim = await um(`select public.admin_pedidos(p_de => $1::timestamptz, p_status => $2::text[], p_teste => $3::boolean, p_limite => 30) as r`,
             [iso(u.get('de')), ['concluido', 'cancelado'], t]);
-          return json(200, { marca: m.marca, aceitando: m.aceitando, ativos: ativos.pedidos, fim: fim.pedidos });
+          return json(200, { marca: m.marca, aceitando: m.aceitando, no_horario: m.no_horario, ativos: ativos.pedidos, fim: fim.pedidos });
         }
         case 'resumo':
           return json(200, await um('select public.admin_resumo($1::timestamptz, $2::timestamptz, $3::boolean) as r', [iso(u.get('de')), iso(u.get('ate')), sim(u.get('teste'))]));
@@ -55,6 +56,11 @@ export default {
           if (get) break;
           return json(200, await um('select public.admin_mudar_status($1::uuid, $2, $3, $4, $5, $6) as r',
             [b.id, String(b.para || ''), b.de || null, b.nota || null, s.email, s.nome]));
+        case 'relatorio': {
+          const de = iso(u.get('de')), ate = iso(u.get('ate'));
+          if (!de || !ate || Date.parse(ate) <= Date.parse(de) || Date.parse(ate) - Date.parse(de) > 400 * 864e5) return json(400, { erro: 'periodo_invalido' });
+          return json(200, await um('select public.admin_relatorio($1::timestamptz, $2::timestamptz, $3::boolean) as r', [de, ate, sim(u.get('teste'))]));
+        }
         case 'config':
           return json(200, await um('select public.admin_config() as r'));
         case 'salvar_config':

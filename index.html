@@ -70,7 +70,7 @@
 <link rel="preload" href="assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" href="assets/img/poster-coxinha-480.webp" imagesrcset="assets/img/poster-coxinha-480.webp 480w, assets/img/poster-coxinha-720.webp 720w" imagesizes="(max-width: 639px) 46vw, 340px" fetchpriority="high">
-<link rel="stylesheet" href="assets/site.css?v=11">
+<link rel="stylesheet" href="assets/site.css?v=12">
 <script>
   // o endereço oficial é o da Vercel: quem abrir o link antigo do GitHub Pages vai direto para lá
   if (/\.github\.io$/.test(location.hostname)) location.replace('https://coxitas.vercel.app/' + location.pathname.replace(/^\/coxitas\/?/, '') + location.search + location.hash);
@@ -192,13 +192,13 @@
   <div class="tk-row tk-a" data-speed="46">
     <div class="tk-track">
       <div class="tk-group">
-        <a class="tk-item" href="#combos" tabindex="-1"><img src="assets/img/tk-individual.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>Fome Individual</b><em>R$ 22,90</em></span></a>
-        <a class="tk-item" href="#combos" tabindex="-1"><img src="assets/img/tk-dupla.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>Dupla Fome</b><em>R$ 44,90</em></span></a>
-        <a class="tk-item" href="#salgados" tabindex="-1"><img src="assets/img/tk-preferidos.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>30 salgados</b><em>R$ 23,90</em></span></a>
-        <a class="tk-item" href="#combos" tabindex="-1"><img src="assets/img/tk-familia.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>Fome Família</b><em>R$ 73,90</em></span></a>
-        <a class="tk-item" href="#churros" tabindex="-1"><img src="assets/img/tk-churros.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>10 mini churros</b><em>R$ 10,00</em></span></a>
-        <a class="tk-item" href="#combos" tabindex="-1"><img src="assets/img/tk-galera.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>Fome Galera</b><em>R$ 112,90</em></span></a>
-        <a class="tk-item" href="#salgados" tabindex="-1"><img src="assets/img/tk-quibe.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>100 salgados</b><em>R$ 74,90</em></span></a>
+        <a class="tk-item" href="#combos" tabindex="-1"><img src="assets/img/tk2-individual.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>Fome Individual</b><em>R$ 22,90</em></span></a>
+        <a class="tk-item" href="#combos" tabindex="-1"><img src="assets/img/tk2-dupla.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>Dupla Fome</b><em>R$ 44,90</em></span></a>
+        <a class="tk-item" href="#salgados" tabindex="-1"><img src="assets/img/tk2-preferidos.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>30 salgados</b><em>R$ 23,90</em></span></a>
+        <a class="tk-item" href="#combos" tabindex="-1"><img src="assets/img/tk2-familia.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>Fome Família</b><em>R$ 73,90</em></span></a>
+        <a class="tk-item" href="#churros" tabindex="-1"><img src="assets/img/tk2-churros.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>10 mini churros</b><em>R$ 10,00</em></span></a>
+        <a class="tk-item" href="#combos" tabindex="-1"><img src="assets/img/tk2-galera.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>Fome Galera</b><em>R$ 112,90</em></span></a>
+        <a class="tk-item" href="#salgados" tabindex="-1"><img src="assets/img/tk2-quibe.webp" width="96" height="96" alt="" loading="lazy" decoding="async"><span><b>100 salgados</b><em>R$ 74,90</em></span></a>
       </div>
     </div>
   </div>
@@ -226,6 +226,8 @@
       <p class="lede rv" style="--d:2">Toque em <b>Adicionar</b> nos itens que você quer e finalize o pedido: entrega ou retirada e a forma de pagamento. A Coxitas confirma o pedido com você.</p>
     </div>
 
+    <p class="menu-fechado" data-menu-fechado role="status" hidden><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg><span></span></p>
+
     <nav class="tabs" aria-label="Categorias do cardápio">
       <a href="#combos" class="on">Combos</a>
       <a href="#salgados">Salgados</a>
@@ -240,7 +242,7 @@
       </div>
       <div class="combos rv">
         <article class="prod" data-id="combo-individual" data-nome="Combo Fome Individual" data-detalhe="20 salgados à escolha + 1 Guaraná Antártica 350ml">
-          <div class="prod-media"><img src="assets/img/combo-1-480.webp" srcset="assets/img/combo-1-480.webp 480w, assets/img/combo-1-800.webp 800w, assets/img/combo-1-1080.webp 1080w" sizes="(max-width: 639px) 120px, (max-width: 1179px) 46vw, 280px" width="480" height="360" loading="lazy" decoding="async" alt="Porção de salgados sortidos num cesto."><span class="serve"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg>1 pessoa</span></div>
+          <div class="prod-media"><img src="assets/img/prod-individual-480.webp" srcset="assets/img/prod-individual-480.webp 480w, assets/img/prod-individual-800.webp 800w, assets/img/prod-individual-1080.webp 1080w" sizes="(max-width: 639px) 120px, (max-width: 1179px) 46vw, 280px" width="480" height="360" loading="lazy" decoding="async" alt="Coxinha aberta mostrando o recheio de frango, com outras coxinhas num pote vermelho."><span class="serve"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg>1 pessoa</span></div>
           <div class="prod-body">
             <h4>Fome Individual</h4>
             <ul class="incl"><li>20 salgados à escolha</li><li>1 Guaraná Antártica 350ml</li></ul>
@@ -251,7 +253,7 @@
           </div>
         </article>
         <article class="prod" data-id="combo-dupla" data-nome="Combo Dupla Fome" data-detalhe="40 salgados à escolha + 2 Guaraná Antártica 350ml">
-          <div class="prod-media"><img src="assets/img/combo-2-480.webp" srcset="assets/img/combo-2-480.webp 480w, assets/img/combo-2-800.webp 800w, assets/img/combo-2-1080.webp 1080w" sizes="(max-width: 639px) 120px, (max-width: 1179px) 46vw, 280px" width="480" height="360" loading="lazy" decoding="async" alt="Coxinhas e bolinhos dourados sobre papel."><span class="serve"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg>2 pessoas</span></div>
+          <div class="prod-media"><img src="assets/img/prod-dupla-480.webp" srcset="assets/img/prod-dupla-480.webp 480w, assets/img/prod-dupla-800.webp 800w, assets/img/prod-dupla-1080.webp 1080w" sizes="(max-width: 639px) 120px, (max-width: 1179px) 46vw, 280px" width="480" height="360" loading="lazy" decoding="async" alt="Salgados dourados num pote vermelho, um deles aberto com o recheio à mostra."><span class="serve"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg>2 pessoas</span></div>
           <div class="prod-body">
             <h4>Dupla Fome</h4>
             <ul class="incl"><li>40 salgados à escolha</li><li>2 Guaraná Antártica 350ml</li></ul>
@@ -262,7 +264,7 @@
           </div>
         </article>
         <article class="prod" data-id="combo-familia" data-nome="Combo Fome Família" data-detalhe="60 salgados + 20 mini churros + 1 Guaraná Antártica 2L">
-          <div class="prod-media"><img src="assets/img/combo-3-480.webp" srcset="assets/img/combo-3-480.webp 480w, assets/img/combo-3-800.webp 800w, assets/img/combo-3-1080.webp 1080w" sizes="(max-width: 639px) 120px, (max-width: 1179px) 46vw, 280px" width="480" height="360" loading="lazy" decoding="async" alt="Bandeja de coxinhas com bandeirinhas do Brasil."><span class="serve"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg>até 4 pessoas</span></div>
+          <div class="prod-media"><img src="assets/img/prod-familia-480.webp" srcset="assets/img/prod-familia-480.webp 480w, assets/img/prod-familia-800.webp 800w, assets/img/prod-familia-1080.webp 1080w" sizes="(max-width: 639px) 120px, (max-width: 1179px) 46vw, 280px" width="480" height="360" loading="lazy" decoding="async" alt="Pote vermelho cheio de coxinhas douradas, uma aberta, com molhos ao lado."><span class="serve"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg>até 4 pessoas</span></div>
           <div class="prod-body">
             <h4>Fome Família</h4>
             <ul class="incl"><li>60 salgados</li><li>20 mini churros</li><li>1 Guaraná Antártica 2L</li></ul>
@@ -273,7 +275,7 @@
           </div>
         </article>
         <article class="prod" data-id="combo-galera" data-nome="Combo Fome Galera" data-detalhe="100 salgados + 30 mini churros + 1 Guaraná Antártica 2L">
-          <div class="prod-media"><img src="assets/img/combo-4-480.webp" srcset="assets/img/combo-4-480.webp 480w, assets/img/combo-4-800.webp 800w, assets/img/combo-4-1080.webp 1080w" sizes="(max-width: 639px) 120px, (max-width: 1179px) 46vw, 280px" width="480" height="360" loading="lazy" decoding="async" alt="Bandeja grande cheia de coxinhas."><span class="serve"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg>até 6 pessoas</span></div>
+          <div class="prod-media"><img src="assets/img/prod-galera-480.webp" srcset="assets/img/prod-galera-480.webp 480w, assets/img/prod-galera-800.webp 800w, assets/img/prod-galera-1080.webp 1080w" sizes="(max-width: 639px) 120px, (max-width: 1179px) 46vw, 280px" width="480" height="360" loading="lazy" decoding="async" alt="Tigela cheia de risoles de carne, dois abertos mostrando o recheio."><span class="serve"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg>até 6 pessoas</span></div>
           <div class="prod-body">
             <h4>Fome Galera</h4>
             <ul class="incl"><li>100 salgados</li><li>30 mini churros</li><li>1 Guaraná Antártica 2L</li></ul>
@@ -293,7 +295,7 @@
           <p>Os preferidos, na quantidade que você precisa.</p>
         </div>
         <article class="prod prod-opt" data-id="salgados" data-nome="Salgados" data-un="unidades">
-          <div class="prod-media"><img src="assets/img/preferidos-480.webp" srcset="assets/img/preferidos-480.webp 480w, assets/img/preferidos-800.webp 800w, assets/img/preferidos-1080.webp 1080w" sizes="(max-width: 999px) calc(100vw - 48px), 560px" width="480" height="360" loading="lazy" decoding="async" alt="Coxinhas douradas sobre papel."></div>
+          <div class="prod-media"><img src="assets/img/prod-salgados-480.webp" srcset="assets/img/prod-salgados-480.webp 480w, assets/img/prod-salgados-800.webp 800w, assets/img/prod-salgados-1080.webp 1080w" sizes="(max-width: 999px) calc(100vw - 48px), 560px" width="480" height="360" loading="lazy" decoding="async" alt="Bolinhos de queijo dourados, um aberto com o queijo derretido."></div>
           <div class="prod-body">
             <h4>Preferidos</h4>
             <p class="desc">Escolha a quantidade e diga no pedido quais sabores você quer.</p>
@@ -318,7 +320,7 @@
           <p>Mini churros de 20g, passados no açúcar.</p>
         </div>
         <article class="prod prod-opt" data-id="churros" data-nome="Mini Churros 20g" data-un="unidades">
-          <div class="prod-media"><img src="assets/img/churros-480.webp" srcset="assets/img/churros-480.webp 480w, assets/img/churros-800.webp 800w, assets/img/churros-1080.webp 1080w" sizes="(max-width: 999px) calc(100vw - 48px), 560px" width="480" height="360" loading="lazy" decoding="async" alt="Mini churros dourados passados no açúcar."></div>
+          <div class="prod-media"><img src="assets/img/prod-churros-480.webp" srcset="assets/img/prod-churros-480.webp 480w, assets/img/prod-churros-800.webp 800w, assets/img/prod-churros-1080.webp 1080w" sizes="(max-width: 999px) calc(100vw - 48px), 560px" width="480" height="360" loading="lazy" decoding="async" alt="Mini churros caindo no açúcar com canela num pote vermelho."></div>
           <div class="prod-body">
             <h4>Mini Churros 20g</h4>
             <p class="desc">De 10 a 100 unidades. Bom para dividir ou levar para a festa.</p>
@@ -403,7 +405,7 @@
           <div class="phone-screen">
             <div class="post-head"><img src="assets/img/icon-96.webp" width="30" height="30" alt=""><span><b>coxitas_oficial</b><em>Votuporanga, SP</em></span></div>
             <div class="post-media" id="postMedia">
-              <img class="post-photo" src="assets/img/combo-4-480.webp" width="480" height="360" alt="" loading="lazy" decoding="async">
+              <img class="post-photo" src="assets/img/prod-galera-480.webp" width="480" height="360" alt="" loading="lazy" decoding="async">
               <i class="post-glow"></i>
               <i class="pm pm-tl"></i><i class="pm pm-tr"></i><i class="pm pm-br"></i><i class="pm pm-bl"></i>
             </div>
@@ -466,7 +468,7 @@
       <li><button class="shot" type="button" data-full="assets/img/gal-churros-800.webp"><span class="kb"><img src="assets/img/gal-churros-480.webp" srcset="assets/img/gal-churros-480.webp 480w, assets/img/gal-churros-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Mini churros passados no açúcar."></span><span class="shot-cap">Mini churros</span></button></li>
       <li><button class="shot" type="button" data-full="assets/img/gal-risole-800.webp"><span class="kb"><img src="assets/img/gal-risole-480.webp" srcset="assets/img/gal-risole-480.webp 480w, assets/img/gal-risole-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Panelinha vermelha com risoles, um deles aberto."></span><span class="shot-cap">Risole</span></button></li>
       <li><button class="shot" type="button" data-full="assets/img/gal-quibe-pote-600.webp"><span class="kb"><img src="assets/img/gal-quibe-pote-480.webp" srcset="assets/img/gal-quibe-pote-480.webp 480w, assets/img/gal-quibe-pote-600.webp 600w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Quibes fritos numa panelinha vermelha."></span><span class="shot-cap">Quibe</span></button></li>
-      <li><button class="shot" type="button" data-full="assets/img/gal-bandeiras-800.webp"><span class="kb"><img src="assets/img/gal-bandeiras-480.webp" srcset="assets/img/gal-bandeiras-480.webp 480w, assets/img/gal-bandeiras-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Bandeja de coxinhas com bandeirinhas do Brasil."></span><span class="shot-cap">Dia de jogo</span></button></li>
+      <li><button class="shot" type="button" data-full="assets/img/gal-bandeiras-800.webp"><span class="kb"><img src="assets/img/gal-bandeiras-480.webp" srcset="assets/img/gal-bandeiras-480.webp 480w, assets/img/gal-bandeiras-800.webp 800w" sizes="(max-width: 639px) 50vw, 25vw" width="480" height="600" loading="lazy" decoding="async" alt="Pote vermelho cheio de coxinhas douradas, uma aberta, com molhos ao lado."></span><span class="shot-cap">Dia de jogo</span></button></li>
       <li><a class="ig-tile" href="https://www.instagram.com/coxitas_oficial/" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-insta"/></svg><span>Mais vídeos saindo da fritura no Instagram</span><b>@coxitas_oficial</b></a></li>
     </ul>
   </div>
@@ -658,7 +660,7 @@
             <div class="field end-comp"><label for="o-comp">Complemento <span>opcional</span></label><input id="o-comp" name="complemento" type="text" maxlength="80" placeholder="Casa, apto, referência"></div>
           </div>
           <p class="end-status" data-end-status role="status" hidden><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg><span></span></p>
-          <p class="end-nota">A Coxitas entrega até <b data-raio>12</b> km da loja. A rua é conferida no mapa (<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>).</p>
+          <p class="end-nota">A Coxitas entrega até <b data-raio>12</b> km da loja<span data-taxas></span>. A rua é conferida no mapa (<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>).</p>
         </fieldset>
         <fieldset class="pay" aria-describedby="e-pag">
           <legend>Forma de pagamento <span>na entrega ou na retirada</span></legend>
@@ -678,7 +680,7 @@
     <footer class="drawer-foot" data-filled hidden>
       <dl class="sum">
         <div><dt>Subtotal</dt><dd data-sum-sub>R$ 0,00</dd></div>
-        <div><dt>Entrega</dt><dd data-sum-fee>a combinar</dd></div>
+        <div><dt data-sum-fee-label>Entrega</dt><dd data-sum-fee>a combinar</dd></div>
         <div class="sum-total"><dt>Total</dt><dd><b data-sum-total>R$ 0,00</b></dd></div>
       </dl>
       <p class="total-note" data-total-note>A taxa de entrega é combinada com a Coxitas depois do pedido.</p>
@@ -702,7 +704,7 @@
 
 <p class="sr" id="live" aria-live="polite"></p>
 
-<script src="assets/site.js?v=11" defer></script>
+<script src="assets/site.js?v=12" defer></script>
 <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

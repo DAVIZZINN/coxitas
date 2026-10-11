@@ -244,3 +244,89 @@ code{padding:1px 6px;border-radius:6px;background:rgba(255,241,222,.08);font-siz
   .st{background:none;color:#000;border:1px solid #000}
   .d-obs{background:#eee;color:#000}
 }
+
+/* ---------- relatórios ---------- */
+.rel-filtros{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:4px 0 8px}
+.rel-periodo{margin:0 0 14px;font-size:13.5px}
+.rel-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:14px}
+.stat{display:grid;gap:6px;padding:16px;border-radius:var(--r);border:1px solid var(--line);background:var(--card)}
+.stat span{color:var(--text-2);font-size:13.5px;font-weight:600}
+.stat b{font:600 26px/1.1 var(--f-text);color:var(--cream);font-variant-numeric:tabular-nums}
+.stat small{display:flex;align-items:center;gap:4px;color:var(--text-3);font-size:12.5px}
+.stat small i{font-style:normal;font-weight:700}
+.stat small .bom{color:#7FE0AA}.stat small .ruim{color:#FF9C8A}
+.g-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));gap:12px}
+.g-card{position:relative;display:grid;align-content:start;gap:12px;padding:16px 16px 12px;min-width:0}
+.g-largo{grid-column:1/-1}
+.g-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px}
+.g-head h3{font:700 15.5px/1.25 var(--f-text)}
+.g-head p{font-size:13px;margin-top:3px}
+.g-ctl{display:flex;flex-wrap:wrap;gap:8px}
+.seg-mini{display:inline-flex;padding:3px;border-radius:999px;border:1px solid var(--line-strong)}
+.seg-mini button{min-height:30px;padding:0 12px;border:0;border-radius:999px;background:transparent;color:var(--text-2);font:600 13px/1 var(--f-text);cursor:pointer}
+.seg-mini button[aria-pressed=true]{background:var(--cream);color:var(--ink)}
+.g-area{min-height:200px}
+.g-area svg{display:block;width:100%;height:auto;overflow:visible}
+.g-grade{stroke:rgba(255,214,176,.09);stroke-width:1}
+.g-base{stroke:rgba(255,214,176,.28);stroke-width:1}
+.g-eixo{fill:var(--text-3);font:500 11px var(--f-text);font-variant-numeric:tabular-nums}
+.g-valor{fill:var(--cream);font:700 12px var(--f-text);font-variant-numeric:tabular-nums}
+.g-barra{fill:var(--orange);transition:fill .15s}
+.g-col.on .g-barra{fill:#FFA05C}
+.g-toque{fill:transparent;cursor:crosshair}
+.g-col.on .g-toque{fill:rgba(255,241,222,.04)}
+.g-vazio{padding:28px 0;color:var(--text-3);text-align:center;font-size:14px}
+.g-dica[hidden]{display:none}
+.g-dica{position:absolute;left:0;top:0;z-index:5;min-width:140px;max-width:240px;padding:9px 11px;border-radius:10px;background:#0E0603;border:1px solid var(--line-strong);box-shadow:0 12px 28px -10px rgba(0,0,0,.8);pointer-events:none;font-size:13px}
+.g-dica p{display:flex;justify-content:space-between;gap:14px;color:var(--text-2);line-height:1.5}
+.g-dica .g-dica-t{color:var(--cream);font-weight:700}
+.g-dica b{color:var(--cream);font-variant-numeric:tabular-nums}
+.g-rank{display:grid;gap:9px;margin:0;padding:0;list-style:none}
+.g-rank li{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) auto;align-items:center;gap:4px 10px}
+.g-rank-rot{color:var(--text-2);font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.g-rank-trilho{height:14px;border-radius:0 4px 4px 0;background:rgba(255,214,176,.05)}
+.g-rank-barra{display:block;height:100%;border-radius:0 4px 4px 0;background:var(--orange)}
+.g-rank-val{color:var(--cream);font-size:13.5px;font-variant-numeric:tabular-nums;text-align:right}
+.g-rank-extra{grid-column:2/-1;margin-top:-4px;color:var(--text-3);font-size:12px}
+[data-g=modalidades]{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.g-radar{display:block;width:min(100%,360px);height:auto;margin:0 auto}
+.g-anel{fill:none;stroke:rgba(255,214,176,.14);stroke-width:1}
+.g-ponto{fill:var(--orange);stroke:var(--card);stroke-width:2;opacity:.9}
+.g-loja{fill:var(--cream);stroke:var(--card);stroke-width:3}
+.g-tabela summary{color:var(--text-3);font-size:13px;cursor:pointer}
+.g-tabela table{width:100%;margin-top:8px;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.g-tabela th,.g-tabela td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+.g-tabela th{color:var(--text-3);font-weight:600}
+
+/* ---------- horário e faixas de taxa ---------- */
+.horario,.faixas{display:grid;gap:10px;margin:0;padding:0;border:0;min-width:0}
+.horario legend,.faixas legend{padding:0;margin-bottom:2px;font:700 15px/1.2 var(--f-text)}
+.horario-dias{display:grid;gap:6px}
+.dia-linha{display:grid;grid-template-columns:7.2em auto 1fr;align-items:center;gap:8px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:12px}
+.dia-linha .horas{display:flex;align-items:center;gap:6px;color:var(--text-3);font-size:13px}
+.dia-linha input[type=time]{min-height:38px;padding:0 8px;border-radius:10px;border:1px solid var(--line-strong);background:var(--field);color:var(--cream);font:inherit;font-size:14px;color-scheme:dark}
+.dia-linha.fechado .horas{opacity:.35}
+.faixas-lista{display:grid;gap:6px}
+.faixa{display:grid;grid-template-columns:auto 5.5em auto 6.5em 1fr auto;align-items:center;gap:8px;color:var(--text-2);font-size:14px}
+.faixa .input{min-height:38px;padding:0 10px}
+.faixa .icon-btn{width:34px;height:34px}
+.faixas .btn{justify-self:start}
+
+/* ---------- alarme de pedido novo ---------- */
+.alarme{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;background:rgba(10,4,2,.86);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:alarmeFundo 1s ease-in-out infinite alternate}
+@keyframes alarmeFundo{to{background:rgba(70,22,8,.9)}}
+.alarme-caixa{display:grid;justify-items:center;gap:10px;width:min(440px,100%);padding:28px 24px 20px;border-radius:24px;border:2px solid var(--orange);background:var(--card);box-shadow:0 0 0 8px rgba(242,120,42,.18),0 30px 80px -20px #000;text-align:center}
+.alarme-sino{display:grid;place-items:center;width:76px;height:76px;border-radius:50%;background:var(--orange);color:var(--ink);animation:alarmeSino .6s ease-in-out infinite}
+.alarme-sino .ico{width:40px;height:40px}
+@keyframes alarmeSino{0%,100%{transform:rotate(0)}25%{transform:rotate(18deg)}75%{transform:rotate(-18deg)}}
+.alarme-sup{color:var(--gold);font-weight:800;font-size:15px;letter-spacing:.12em;text-transform:uppercase}
+.alarme h2{font:600 44px/1 var(--f-display);color:var(--cream)}
+.alarme-info{font-size:17px;font-weight:700;color:var(--cream)}
+.alarme-itens{color:var(--text-2);font-size:14.5px;line-height:1.45}
+.alarme-acoes{display:grid;gap:10px;width:100%;margin-top:6px}
+.alarme-acoes .btn{width:100%;min-height:54px;font-size:17px}
+.som-bloqueado{position:fixed;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom));z-index:80;display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100% - 28px);margin:0 auto;padding:14px 20px;border:2px solid var(--gold);border-radius:999px;background:#3A1E0A;color:var(--cream);font:700 15px/1.2 var(--f-text);box-shadow:0 16px 40px -12px #000;cursor:pointer;animation:somPulsa 1.4s ease-in-out infinite}
+.som-bloqueado[hidden]{display:none}
+@keyframes somPulsa{50%{box-shadow:0 0 0 8px rgba(247,181,61,.25),0 16px 40px -12px #000}}
+@media (min-width:900px){.som-bloqueado{bottom:24px}}
+@media (max-width:560px){.dia-linha{grid-template-columns:1fr auto}.dia-linha .horas{grid-column:1/-1}.faixa{grid-template-columns:auto 4.5em auto 5.5em auto;font-size:13px}.faixa .faixa-r{display:none}}

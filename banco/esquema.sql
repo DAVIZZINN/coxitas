@@ -26,6 +26,17 @@ insert into public.loja_config (id) values (1) on conflict (id) do nothing;
 alter table public.loja_config add column if not exists raio_entrega_km numeric(4,1) not null default 12 check (raio_entrega_km between 1 and 50);
 alter table public.loja_config add column if not exists loja_lat double precision not null default -20.4317;
 alter table public.loja_config add column if not exists loja_lng double precision not null default -49.9475;
+-- horário de funcionamento: domingo (0) a sábado (6), ["HH:MM", "HH:MM"] ou null (fechado o dia todo).
+-- Fora do horário o site só mostra o cardápio; o banco recusa pedido.
+alter table public.loja_config add column if not exists horarios jsonb not null
+  default '[["15:00","20:00"],["09:00","21:00"],["09:00","21:00"],["09:00","21:00"],["09:00","21:00"],["09:00","21:00"],["09:00","21:00"]]'::jsonb;
+-- taxa de entrega pela distância da loja (em linha reta): a primeira faixa com "ate_km" >= distância vale.
+-- Lista vazia = taxa fixa antiga (taxa_entrega_centavos) ou a combinar.
+alter table public.loja_config add column if not exists taxas_entrega jsonb not null
+  default '[{"ate_km":2,"centavos":400},{"ate_km":4,"centavos":600},{"ate_km":7,"centavos":800},{"ate_km":12,"centavos":1200}]'::jsonb;
+-- entrega grátis a partir deste valor de itens (null = nunca)
+alter table public.loja_config add column if not exists entrega_gratis_acima_centavos integer
+  check (entrega_gratis_acima_centavos is null or entrega_gratis_acima_centavos between 0 and 10000000);
 
 -- ---------- cardápio (o preço que vale é o daqui; o site só mostra) ----------
 create table if not exists public.produtos (
@@ -79,6 +90,9 @@ create index if not exists pedidos_telefone_idx on public.pedidos (cliente_telef
 alter table public.pedidos add column if not exists entrega_lat double precision;
 alter table public.pedidos add column if not exists entrega_lng double precision;
 alter table public.pedidos add column if not exists entrega_km numeric(5,1);
+-- bairro e rua separados, para os relatórios ("onde mais vende")
+alter table public.pedidos add column if not exists entrega_bairro text check (entrega_bairro is null or char_length(entrega_bairro) <= 60);
+alter table public.pedidos add column if not exists entrega_rua text check (entrega_rua is null or char_length(entrega_rua) <= 120);
 
 -- ruas já conferidas no mapa (o servidor não pergunta de novo a cada pedido)
 create table if not exists public.geo_cache (
@@ -190,6 +204,41 @@ returns double precision language sql immutable as $$
     + cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)));
 $$;
 
+-- hora de Votuporanga (Brasil sem horário de verão desde 2019: UTC-3 fixo, igual ao site)
+create or replace function public.agora_loja() returns timestamp language sql stable as $$
+  select (now() at time zone 'UTC') - interval '3 hours';
+$$;
+
+-- a loja está no horário de funcionamento agora?
+create or replace function public.loja_no_horario(h jsonb) returns boolean language plpgsql stable as $$
+declare
+  t timestamp := public.agora_loja();
+  d jsonb := h -> extract(dow from t)::int;
+  agora text := to_char(t, 'HH24:MI');
+begin
+  if d is null or jsonb_typeof(d) <> 'array' then return false; end if;
+  -- fecha depois da meia-noite (ex.: 18:00 às 02:00) também vale
+  -- "23:59" no fechamento = até a meia-noite
+  if (d ->> 0) <= (d ->> 1) then return agora >= (d ->> 0) and (agora < (d ->> 1) or (d ->> 1) = '23:59'); end if;
+  return agora >= (d ->> 0) or agora < (d ->> 1);
+end $$;
+
+-- taxa de entrega pela distância e pelo valor dos itens (null = a combinar)
+create or replace function public.taxa_por_distancia(cfg public.loja_config, p_km double precision, p_sub integer) returns integer
+language plpgsql stable as $$
+declare f jsonb; ultima integer;
+begin
+  if cfg.entrega_gratis_acima_centavos is not null and p_sub >= cfg.entrega_gratis_acima_centavos then return 0; end if;
+  if jsonb_typeof(cfg.taxas_entrega) <> 'array' or jsonb_array_length(cfg.taxas_entrega) = 0 or p_km is null then
+    return cfg.taxa_entrega_centavos;
+  end if;
+  for f in select x from jsonb_array_elements(cfg.taxas_entrega) x order by (x ->> 'ate_km')::numeric loop
+    ultima := (f ->> 'centavos')::integer;
+    if p_km <= (f ->> 'ate_km')::numeric then return ultima; end if;
+  end loop;
+  return ultima;  -- dentro do raio mas além da última faixa: vale a última
+end $$;
+
 -- o pedido completo como JSON (usado pelo painel)
 create or replace function public.pedido_json(p public.pedidos) returns jsonb
 language sql stable security definer set search_path = public, pg_temp as $$
@@ -200,7 +249,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     'troco_para_centavos', p.troco_para_centavos, 'observacao', p.observacao, 'sabores', to_jsonb(p.sabores),
     'subtotal_centavos', p.subtotal_centavos, 'taxa_entrega_centavos', p.taxa_entrega_centavos,
     'total_centavos', p.total_centavos, 'teste', p.teste, 'origem', p.origem,
-    'entrega_km', p.entrega_km, 'entrega_lat', p.entrega_lat, 'entrega_lng', p.entrega_lng,
+    'entrega_km', p.entrega_km, 'entrega_lat', p.entrega_lat, 'entrega_lng', p.entrega_lng, 'entrega_bairro', p.entrega_bairro,
     'itens', coalesce((select jsonb_agg(jsonb_build_object('produto_id', i.produto_id, 'nome', i.nome, 'detalhe', i.detalhe,
         'preco_unit_centavos', i.preco_unit_centavos, 'quantidade', i.quantidade, 'total_centavos', i.total_centavos) order by i.id)
       from public.pedido_itens i where i.pedido_id = p.id), '[]'::jsonb)
@@ -230,7 +279,9 @@ language sql stable security definer set search_path = public, pg_temp as $$
   select jsonb_build_object(
     'aceitando_pedidos', c.aceitando_pedidos, 'mensagem_pausa', c.mensagem_pausa,
     'taxa_entrega_centavos', c.taxa_entrega_centavos, 'pedido_minimo_centavos', c.pedido_minimo_centavos,
-    'pagamentos', to_jsonb(c.pagamentos), 'sabores', to_jsonb(c.sabores), 'raio_entrega_km', c.raio_entrega_km
+    'pagamentos', to_jsonb(c.pagamentos), 'sabores', to_jsonb(c.sabores), 'raio_entrega_km', c.raio_entrega_km,
+    'horarios', c.horarios, 'no_horario', public.loja_no_horario(c.horarios), 'taxas_entrega', c.taxas_entrega,
+    'entrega_gratis_acima_centavos', c.entrega_gratis_acima_centavos
   ) from public.loja_config c where c.id = 1;
 $$;
 
@@ -270,6 +321,7 @@ begin
 
   select * into cfg from public.loja_config where id = 1;
   if not cfg.aceitando_pedidos then perform public.falha('loja_pausada', cfg.mensagem_pausa); end if;
+  if not public.loja_no_horario(cfg.horarios) then perform public.falha('loja_fechada'); end if;
 
   v_nome := btrim(regexp_replace(coalesce(p ->> 'nome', ''), '\s+', ' ', 'g'));
   if char_length(v_nome) < 2 or char_length(v_nome) > 80 then perform public.falha('nome_invalido'); end if;
@@ -357,12 +409,15 @@ begin
     perform public.falha('muitos_pedidos');
   end if;
 
-  v_taxa := case when v_mod = 'entrega' then cfg.taxa_entrega_centavos else 0 end;
+  v_taxa := case when v_mod = 'entrega' then public.taxa_por_distancia(cfg, v_km, v_sub) else 0 end;
 
   insert into public.pedidos (chave, cliente_nome, cliente_telefone, modalidade, endereco, pagamento, troco_para_centavos,
-    observacao, sabores, subtotal_centavos, taxa_entrega_centavos, total_centavos, teste, entrega_lat, entrega_lng, entrega_km)
+    observacao, sabores, subtotal_centavos, taxa_entrega_centavos, total_centavos, teste, entrega_lat, entrega_lng, entrega_km,
+    entrega_bairro, entrega_rua)
   values (v_chave, v_nome, v_tel, v_mod, v_end, v_pag, v_troco, v_obs, v_sab, v_sub, v_taxa, v_sub + coalesce(v_taxa, 0), v_teste,
-    v_lat, v_lng, round(v_km::numeric, 1))
+    v_lat, v_lng, round(v_km::numeric, 1),
+    case when v_mod = 'entrega' then nullif(left(btrim(regexp_replace(coalesce(p #>> '{endereco_partes,bairro}', ''), '\s+', ' ', 'g')), 60), '') end,
+    case when v_mod = 'entrega' then nullif(left(btrim(coalesce(p_geo ->> 'rua', '')), 120), '') end)
   on conflict (chave) do nothing
   returning * into v_ped;
 
@@ -421,6 +476,9 @@ begin
     'modalidade', v.modalidade, 'pagamento', v.pagamento, 'primeiro_nome', split_part(v.cliente_nome, ' ', 1),
     'sabores', to_jsonb(v.sabores), 'subtotal_centavos', v.subtotal_centavos,
     'taxa_entrega_centavos', v.taxa_entrega_centavos, 'total_centavos', v.total_centavos, 'teste', v.teste,
+    'entrega_km', v.entrega_km,
+    'motivo', case when v.status = 'cancelado' then (select e.nota from public.pedido_eventos e
+      where e.pedido_id = v.id and e.status_para = 'cancelado' order by e.criado_em desc limit 1) end,
     'itens', coalesce((select jsonb_agg(jsonb_build_object('nome', i.nome, 'detalhe', i.detalhe, 'quantidade', i.quantidade,
         'total_centavos', i.total_centavos) order by i.id) from public.pedido_itens i where i.pedido_id = v.id), '[]'::jsonb),
     'eventos', coalesce((select jsonb_agg(jsonb_build_object('status', e.status_para, 'criado_em', e.criado_em) order by e.criado_em, e.id)
@@ -526,6 +584,41 @@ begin
   return (select to_jsonb(c) - 'id' from public.loja_config c where c.id = 1);
 end $$;
 
+-- confere o horário vindo do painel: 7 dias, cada um ["HH:MM","HH:MM"] ou null
+create or replace function public.horarios_validos(h jsonb) returns jsonb language plpgsql immutable as $$
+declare d jsonb;
+begin
+  if jsonb_typeof(h) <> 'array' or jsonb_array_length(h) <> 7 then perform public.falha('horarios_invalidos'); end if;
+  for d in select x from jsonb_array_elements(h) x loop
+    if jsonb_typeof(d) = 'null' then continue; end if;
+    if jsonb_typeof(d) <> 'array' or jsonb_array_length(d) <> 2
+       or (d ->> 0) !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' or (d ->> 1) !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' or (d ->> 0) = (d ->> 1) then
+      perform public.falha('horarios_invalidos');
+    end if;
+  end loop;
+  return h;
+end $$;
+
+-- confere as faixas de taxa: até 8, km entre 0,5 e 50 sem repetir, valor entre R$ 0 e R$ 200
+create or replace function public.taxas_validas(t jsonb) returns jsonb language plpgsql immutable as $$
+declare f jsonb; kms numeric[] := '{}';
+begin
+  if jsonb_typeof(t) <> 'array' or jsonb_array_length(t) > 8 then perform public.falha('taxas_invalidas'); end if;
+  for f in select x from jsonb_array_elements(t) x loop
+    begin
+      if (f ->> 'ate_km') is null or (f ->> 'centavos') is null or (f ->> 'ate_km')::numeric not between 0.5 and 50 or (f ->> 'centavos')::integer not between 0 and 20000
+         or (f ->> 'ate_km')::numeric = any (kms) then
+        perform public.falha('taxas_invalidas');
+      end if;
+      kms := kms || (f ->> 'ate_km')::numeric;
+    exception when invalid_text_representation or numeric_value_out_of_range or null_value_not_allowed then
+      perform public.falha('taxas_invalidas');
+    end;
+  end loop;
+  return coalesce((select jsonb_agg(jsonb_build_object('ate_km', (x ->> 'ate_km')::numeric, 'centavos', (x ->> 'centavos')::integer)
+    order by (x ->> 'ate_km')::numeric) from jsonb_array_elements(t) x), '[]'::jsonb);
+end $$;
+
 create or replace function public.admin_salvar_config(p jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
@@ -543,6 +636,9 @@ begin
     taxa_entrega_centavos = case when p ? 'taxa_entrega_centavos' then nullif(p ->> 'taxa_entrega_centavos', '')::integer else taxa_entrega_centavos end,
     pedido_minimo_centavos = case when p ? 'pedido_minimo_centavos' then coalesce(nullif(p ->> 'pedido_minimo_centavos', '')::integer, 0) else pedido_minimo_centavos end,
     raio_entrega_km = case when p ? 'raio_entrega_km' then coalesce(nullif(p ->> 'raio_entrega_km', '')::numeric, raio_entrega_km) else raio_entrega_km end,
+    horarios = case when p ? 'horarios' then public.horarios_validos(p -> 'horarios') else horarios end,
+    taxas_entrega = case when p ? 'taxas_entrega' then public.taxas_validas(p -> 'taxas_entrega') else taxas_entrega end,
+    entrega_gratis_acima_centavos = case when p ? 'entrega_gratis_acima_centavos' then nullif(p ->> 'entrega_gratis_acima_centavos', '')::integer else entrega_gratis_acima_centavos end,
     pagamentos = coalesce(v_pag, pagamentos)
   where id = 1;
   return public.admin_config();
@@ -556,4 +652,56 @@ begin
   delete from public.pedidos where teste;
   get diagnostics n = row_count;
   return n;
+end $$;
+
+-- =====================================================================================
+-- Relatórios do painel: tudo de uma vez, pelo relógio de Votuporanga. Cancelados ficam fora das vendas
+-- (contam só na taxa de cancelamento). "Itens" = quantidade de cada produto do cardápio.
+-- =====================================================================================
+create or replace function public.admin_relatorio(p_de timestamptz, p_ate timestamptz, p_teste boolean default false)
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare r jsonb;
+begin
+  with base as (
+    select p.*, (p.criado_em at time zone 'UTC') - interval '3 hours' as hl
+    from public.pedidos p
+    where p.criado_em >= p_de and p.criado_em < p_ate and p.teste = coalesce(p_teste, false)
+  ), vendas as (select * from base where status <> 'cancelado')
+  select jsonb_build_object(
+    'resumo', (select jsonb_build_object(
+        'pedidos', count(*) filter (where status <> 'cancelado'),
+        'cancelados', count(*) filter (where status = 'cancelado'),
+        'faturamento_centavos', coalesce(sum(total_centavos) filter (where status <> 'cancelado'), 0),
+        'itens_centavos', coalesce(sum(subtotal_centavos) filter (where status <> 'cancelado'), 0),
+        'taxas_centavos', coalesce(sum(taxa_entrega_centavos) filter (where status <> 'cancelado'), 0),
+        'entregas', count(*) filter (where status <> 'cancelado' and modalidade = 'entrega'),
+        'retiradas', count(*) filter (where status <> 'cancelado' and modalidade = 'retirada'),
+        'km_medio', round(avg(entrega_km) filter (where status <> 'cancelado'), 1),
+        'clientes', count(distinct cliente_telefone) filter (where status <> 'cancelado')
+      ) from base),
+    'dias', coalesce((select jsonb_agg(jsonb_build_object('dia', dia, 'pedidos', n, 'centavos', c) order by dia) from (
+        select hl::date as dia, count(*) n, sum(total_centavos) c from vendas group by 1) x), '[]'::jsonb),
+    'semana', coalesce((select jsonb_agg(jsonb_build_object('dow', dow, 'pedidos', n, 'centavos', c) order by dow) from (
+        select extract(dow from hl)::int dow, count(*) n, sum(total_centavos) c from vendas group by 1) x), '[]'::jsonb),
+    'horas', coalesce((select jsonb_agg(jsonb_build_object('hora', h, 'pedidos', n) order by h) from (
+        select extract(hour from hl)::int h, count(*) n from vendas group by 1) x), '[]'::jsonb),
+    'produtos', coalesce((select jsonb_agg(jsonb_build_object('nome', nome, 'quantidade', q, 'centavos', c) order by q desc, c desc) from (
+        select i.nome || case when i.detalhe ~ '^[0-9]+ unidades$' then ' · ' || i.detalhe else '' end as nome,
+               sum(i.quantidade) q, sum(i.total_centavos) c
+        from public.pedido_itens i join vendas v on v.id = i.pedido_id group by 1 order by 2 desc limit 15) x), '[]'::jsonb),
+    'sabores', coalesce((select jsonb_agg(jsonb_build_object('sabor', sabor, 'pedidos', n) order by n desc) from (
+        select s.sabor, count(*) n from vendas v cross join lateral unnest(v.sabores) as s(sabor) group by 1) x), '[]'::jsonb),
+    'bairros', coalesce((select jsonb_agg(jsonb_build_object('bairro', bairro, 'pedidos', n, 'centavos', c, 'km', km) order by n desc, c desc) from (
+        select initcap(lower(entrega_bairro)) bairro, count(*) n, sum(total_centavos) c, round(avg(entrega_km), 1) km
+        from vendas where modalidade = 'entrega' and entrega_bairro is not null group by 1 order by 2 desc limit 12) x), '[]'::jsonb),
+    'pagamentos', coalesce((select jsonb_agg(jsonb_build_object('pagamento', pagamento, 'pedidos', n) order by n desc) from (
+        select pagamento, count(*) n from vendas group by 1) x), '[]'::jsonb),
+    'distancias', coalesce((select jsonb_agg(jsonb_build_object('faixa', faixa, 'pedidos', n) order by faixa) from (
+        select least(floor(entrega_km)::int, 12) faixa, count(*) n from vendas where entrega_km is not null group by 1) x), '[]'::jsonb),
+    'pontos', coalesce((select jsonb_agg(jsonb_build_array(round(entrega_lat::numeric, 4), round(entrega_lng::numeric, 4))) from (
+        select entrega_lat, entrega_lng from vendas where entrega_lat is not null order by criado_em desc limit 600) x), '[]'::jsonb),
+    'loja', (select jsonb_build_array(loja_lat, loja_lng, raio_entrega_km) from public.loja_config where id = 1)
+  ) into r;
+  return r;
 end $$;

@@ -66,6 +66,24 @@ O botão "Entrar com a conta da Vercel" só aparece quando as duas chaves abaixo
 
 Projeto **coxitas** > aba **Analytics** > **Enable** (Web Analytics). O site já tem o código.
 
+## Horário, taxa de entrega e relatórios (painel)
+
+* **Horário** (aba Loja): um horário por dia. Fora dele o site só mostra o cardápio: o botão Adicionar fica apagado e
+  aparece "Fechado agora · abre às ...". O banco também recusa pedido fora do horário. Desligar "Recebendo pedidos
+  pelo site" faz o mesmo na hora (por exemplo, acabou a massa).
+* **Taxa de entrega pela distância** (aba Loja): faixas "até X km: R$ Y" (começa em 2 km R$ 4, 4 km R$ 6, 7 km R$ 8,
+  12 km R$ 12). Assim que o cliente escreve a rua, o site confere no mapa, mostra a distância e a taxa e soma no total.
+  "Entrega grátis acima de" zera a taxa a partir de um valor. Sem faixa nenhuma, fica "a combinar".
+* **Relatórios** (aba Relatórios): faturamento, pedidos, ticket médio, clientes, taxas e cancelados (comparando com o
+  período anterior), vendas por dia/semana/mês, dias da semana, horários de pico, produtos e sabores mais vendidos,
+  bairros que mais compram, mapa e distância das entregas, pagamento e entrega x retirada. Cada gráfico tem "Ver os
+  números" com a tabela.
+* **Alarme de pedido novo**: tela cheia com o pedido, sirene alta a cada 4 segundos até alguém tocar em "Aceitar
+  pedido" ou "Ver o pedido" (dá para silenciar por 2 minutos). Som e notificação do sistema vêm ligados: o navegador só
+  libera o som depois do primeiro toque na tela (aparece o botão "Toque aqui para ligar o alarme") e pede a permissão
+  de notificação no primeiro toque. Deixe o painel aberto no computador ou tablet da loja.
+* **Motivo do cancelamento**: o que a equipe escrever aparece para o cliente no acompanhamento.
+
 ## Área de entrega
 
 * O cliente escreve rua, número, bairro e complemento. Assim que termina a rua, o site confere no mapa
@@ -76,6 +94,15 @@ Projeto **coxitas** > aba **Analytics** > **Enable** (Web Analytics). O site já
   Valentim Gentil fica a uns 14,5 km). O pedido mostra no painel a distância aproximada.
 * O mapa de Votuporanga quase não tem número de casa: a conferência é da rua. O número e o bairro vão para o entregador.
 * Se o mapa estiver fora do ar, o site avisa e oferece mandar o pedido pelo WhatsApp.
+
+## Acompanhamento do pedido
+
+* "Acompanhar meu pedido" abre direto o último pedido feito no aparelho, sem digitar número.
+* Cada etapa tem uma cena animada com o mascote: sininho (recebido), joinha (confirmado), fritando de chapéu de chef
+  (em preparo), fechando a caixa (pronto para retirar), de motinha pela cidade (saiu para entrega), confete (entregue)
+  e chuvinha (cancelado).
+* A página confere sozinha a cada 15 segundos. Quando muda, toca um som; quando é cancelado, toca um alerta, vibra e
+  mostra o motivo em vermelho. Com "Me avisar quando o pedido mudar", chega notificação mesmo com a página em segundo plano.
 
 ## Pedido em andamento
 

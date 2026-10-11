@@ -47,6 +47,9 @@
     origem: 'Bloqueado por segurança. Recarregue a página e tente de novo.',
     sem_banco: 'O banco de pedidos não está ligado.',
     interno: 'O servidor teve um problema. Tente de novo em instantes.',
+    horarios_invalidos: 'Confira o horário: cada dia aberto precisa de hora de abrir e de fechar diferentes.',
+    taxas_invalidas: 'Confira as faixas de taxa: km entre 0,5 e 50 (sem repetir) e valor até R$ 200.',
+    periodo_invalido: 'Período inválido para o relatório.',
   };
   const textoErro = e => (e && ERRO[e.message]) || (e && e.rede ? 'Sem conexão com o servidor. Confira a internet.' : 'Não deu certo agora. Tente de novo.');
   // GET para ler; POST com JSON para mudar (a API só aceita mudança vinda deste mesmo site)
@@ -82,8 +85,9 @@
     while (toasts.children.length > 3) toasts.firstElementChild.remove();
     setTimeout(() => t.remove(), opts.tempo || 9000);
   }
-  let som = false, audio = null;
-  try { som = localStorage.getItem('cx-painel-som') === 'on'; } catch (e) {}
+  // som ligado de fábrica: só fica desligado se alguém desligar no sininho
+  let som = true, audio = null;
+  try { som = localStorage.getItem('cx-painel-som') !== 'off'; } catch (e) {}
   const somBtn = $('[data-som]');
   function syncSom() {
     somBtn.setAttribute('aria-pressed', String(som));
@@ -91,23 +95,39 @@
     $('[data-som-txt]').textContent = som ? 'Desligar o som de pedido novo' : 'Ligar o som de pedido novo';
     somBtn.title = som ? 'Som de pedido novo: ligado' : 'Som de pedido novo: desligado';
   }
-  function bip() {
-    if (!som) return;
+  const garanteAudio = () => { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} return audio; };
+  const somBloqueado = $('[data-som-bloqueado]');
+  // sirene: duas ondas subindo e descendo, várias vezes, num compressor (o mais alto que o aparelho deixa)
+  function sirene(vezes = 3) {
+    if (!som || !garanteAudio()) return;
+    if (audio.state === 'suspended') audio.resume().catch(() => {});
+    if (audio.state !== 'running') { somBloqueado.hidden = false; return; }
     try {
-      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
-      if (audio.state === 'suspended') audio.resume();
-      const t0 = audio.currentTime;
-      [[880, 0], [1175, .18]].forEach(([f, dt]) => {
-        const o = audio.createOscillator(), g = audio.createGain();
-        o.type = 'sine'; o.frequency.value = f;
-        g.gain.setValueAtTime(0.0001, t0 + dt); g.gain.exponentialRampToValueAtTime(0.25, t0 + dt + .02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + .16);
-        o.connect(g).connect(audio.destination); o.start(t0 + dt); o.stop(t0 + dt + .18);
-      });
+      const t0 = audio.currentTime + 0.03, comp = audio.createDynamicsCompressor(), vol = audio.createGain();
+      comp.threshold.value = -14; comp.ratio.value = 8; vol.gain.value = 1;
+      comp.connect(vol).connect(audio.destination);
+      for (let i = 0; i < vezes; i++) {
+        const t = t0 + i * 0.62;
+        [['square', 1, 0.55], ['sawtooth', 1.5, 0.25]].forEach(([tipo, mult, alto]) => {
+          const o = audio.createOscillator(), g = audio.createGain();
+          o.type = tipo;
+          o.frequency.setValueAtTime(700 * mult, t); o.frequency.linearRampToValueAtTime(1350 * mult, t + 0.28); o.frequency.linearRampToValueAtTime(700 * mult, t + 0.56);
+          g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(alto, t + 0.03); g.gain.setValueAtTime(alto, t + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.59);
+          o.connect(g).connect(comp); o.start(t); o.stop(t + 0.6);
+        });
+      }
     } catch (e) {}
   }
-  somBtn.addEventListener('click', () => { som = !som; try { localStorage.setItem('cx-painel-som', som ? 'on' : 'off'); } catch (e) {} syncSom(); if (som) bip(); alarme(); });
-  // o navegador só deixa tocar som depois de um clique na página
-  document.addEventListener('pointerdown', () => { if (som && audio && audio.state === 'suspended') audio.resume(); }, { passive: true });
+  const bip = () => sirene(1);
+  somBtn.addEventListener('click', () => { som = !som; try { localStorage.setItem('cx-painel-som', som ? 'on' : 'off'); } catch (e) {} syncSom(); if (som) sirene(1); alarme(); });
+  // o navegador só deixa tocar som depois de um toque na página; o primeiro toque também pede a notificação do sistema
+  let pediuNotif = false;
+  document.addEventListener('pointerdown', () => {
+    if (garanteAudio() && audio.state === 'suspended') audio.resume().then(() => { somBloqueado.hidden = true; }).catch(() => {});
+    else somBloqueado.hidden = true;
+    if (!pediuNotif && eu && 'Notification' in window && Notification.permission === 'default') { pediuNotif = true; try { Notification.requestPermission(); } catch (e) {} }
+  }, { passive: true });
+  somBloqueado.addEventListener('click', () => { somBloqueado.hidden = true; sirene(1); });
   syncSom();
 
 
@@ -133,16 +153,17 @@
   }
 
   /* ---------- abas ---------- */
-  const TITULO = { quadro: 'Quadro de pedidos', painel: 'Painel', pedidos: 'Pedidos', loja: 'Loja' };
+  const TITULO = { quadro: 'Quadro de pedidos', painel: 'Painel', pedidos: 'Pedidos', relatorios: 'Relatórios', loja: 'Loja' };
   let aba = 'quadro';
   function vaiPara(nova) {
     aba = TITULO[nova] ? nova : 'quadro';
     $$('[data-tab]').forEach(a => { if (a.dataset.tab === aba) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     $$('[data-tab-view]').forEach(v => { v.hidden = v.dataset.tabView !== aba; });
     $('[data-titulo]').textContent = TITULO[aba];
-    $('[data-filtros]').hidden = aba === 'loja';
+    $('[data-filtros]').hidden = aba === 'loja' || aba === 'relatorios';
     $('[data-filtros]').classList.toggle('so-testes', aba === 'quadro');
     if (aba === 'loja') { carregaConfig(); carregaEquipe(); }
+    if (aba === 'relatorios') carregaRelatorio();
     atualiza({ forca: true });
   }
   window.addEventListener('hashchange', () => { if (eu) vaiPara(location.hash.slice(1)); });
@@ -224,7 +245,7 @@
   async function carregaPainel(forca) {
     const de = inicioDia(0), chave = `${de}|${f.testes}`;
     const r = await api('painel', { de, teste: f.testes, marca: !forca && chave === marcaChave ? marca : null });
-    lojaAberta = r.aceitando !== false;
+    lojaAberta = r.aceitando !== false && r.no_horario !== false;
     if (r.igual) return false;
     marca = r.marca; marcaChave = chave;
     ativosAgora = r.ativos.length;
@@ -238,6 +259,7 @@
     if (conhecidos) novos.forEach(p => { if (!conhecidos.has(p.numero)) avisaNovo(p); });
     conhecidos = conhecidos ? new Set([...conhecidos, ...nums]) : nums;
     if (aba === 'quadro') desenhaQuadro(r.ativos, r.fim);
+    atualizaAlarme(novos);
     return true;
   }
   let ocupado = false, deNovo = null;
@@ -266,7 +288,7 @@
     if (avisados.has(p.numero)) return;
     avisados.add(p.numero);
     if (conhecidos) conhecidos.add(p.numero);
-    bip();
+    notifica(p);
     toast(`Pedido novo nº ${p.numero}`, `${p.cliente_nome} · ${fmt(p.total_centavos)}`, { abrir: p.id, tempo: 15000 });
     requestAnimationFrame(() => $$(`.order[data-id="${p.id}"]`).forEach(x => x.classList.add('flash')));
   }
@@ -354,11 +376,73 @@
     });
   }, 30000);
 
-  // como no iFood: enquanto houver pedido novo sem aceitar, o toque repete a cada 20 segundos (com o som ligado)
+  // depois que alguém abriu o pedido pelo alarme, enquanto ele seguir "novo" a sirene lembra a cada 30 segundos
   let novosAgora = 0, tAlarme = 0;
   function alarme() {
     clearInterval(tAlarme);
-    if (som && novosAgora > 0) tAlarme = setInterval(() => { if (novosAgora > 0 && som && eu) bip(); else clearInterval(tAlarme); }, 20000);
+    if (som && novosAgora > 0) tAlarme = setInterval(() => { if (novosAgora > 0 && som && eu && alarmeEl.hidden && Date.now() >= silencioAte) sirene(1); else if (!novosAgora) clearInterval(tAlarme); }, 30000);
+  }
+
+  /* ---------- alarme de pedido novo: tela cheia + sirene a cada 4 s até aceitar ou abrir o pedido ---------- */
+  const alarmeEl = $('[data-alarme]');
+  const reconhecidos = new Set();
+  let fila = [], tSirene = 0, silencioAte = 0, tTitulo = 0;
+  function atualizaAlarme(novos) {
+    const ids = new Set(novos.map(p => p.id));
+    [...reconhecidos].forEach(id => { if (!ids.has(id)) reconhecidos.delete(id); });
+    fila = novos.filter(p => !reconhecidos.has(p.id)).sort((a, b) => (a.criado_em < b.criado_em ? -1 : 1));
+    if (!fila.length) return fechaAlarme();
+    const p = fila[0], km = p.entrega_km != null ? ` ${String(p.entrega_km).replace('.', ',')} km` : '';
+    $('[data-al-num]').textContent = p.numero;
+    $('[data-al-info]').textContent = `${p.cliente_nome} · ${fmt(p.total_centavos)} · ${p.modalidade === 'retirada' ? 'Retirada' : `Entrega${km}`}`;
+    $('[data-al-itens]').textContent = resumoItens(p);
+    $('[data-al-mais]').textContent = fila.length > 1 ? `E mais ${fila.length - 1} ${fila.length === 2 ? 'pedido novo esperando' : 'pedidos novos esperando'}.` : '';
+    const nova = alarmeEl.hidden || alarmeEl.dataset.id !== p.id;
+    alarmeEl.dataset.id = p.id;
+    if (alarmeEl.hidden) { alarmeEl.hidden = false; $('[data-al-aceitar]').focus({ preventScroll: true }); }
+    if (nova) tocaAlarme();
+  }
+  function tocaAlarme() {
+    clearInterval(tSirene); clearInterval(tTitulo);
+    const toca = () => { if (!alarmeEl.hidden && Date.now() >= silencioAte) sirene(3); };
+    toca(); tSirene = setInterval(toca, 4000);
+    let pisca = false;
+    tTitulo = setInterval(() => { pisca = !pisca; document.title = pisca ? '🔔 PEDIDO NOVO' : `(${novosAgora}) Painel · Coxitas`; }, 1000);
+  }
+  function fechaAlarme() {
+    alarmeEl.hidden = true; clearInterval(tSirene); clearInterval(tTitulo);
+    document.title = `${novosAgora ? `(${novosAgora}) ` : ''}Painel · Coxitas`;
+  }
+  $('[data-al-aceitar]').addEventListener('click', async e => {
+    const p = fila[0]; if (!p) return fechaAlarme();
+    const b = e.currentTarget; b.disabled = true; b.setAttribute('aria-busy', 'true');
+    try {
+      await api('status', null, { id: p.id, para: 'confirmado', de: 'novo' });
+      reconhecidos.add(p.id);
+      toast(`Pedido nº ${p.numero} aceito`, 'Ele foi para "Em preparo" no quadro.', { tempo: 3500 });
+      atualizaAlarme(fila.slice(1));
+      atualiza({ silencioso: true, forca: true });
+    } catch (ex) { toast('Não deu para aceitar', textoErro(ex), { erro: true }); if (ex.message === 'status_mudou') { reconhecidos.add(p.id); atualiza({ forca: true }); } }
+    finally { b.disabled = false; b.removeAttribute('aria-busy'); }
+  });
+  $('[data-al-ver]').addEventListener('click', () => {
+    const p = fila[0]; if (!p) return fechaAlarme();
+    reconhecidos.add(p.id);
+    atualizaAlarme(fila.slice(1));
+    abrePedido(p.id);
+  });
+  $('[data-al-silenciar]').addEventListener('click', e => {
+    silencioAte = Date.now() + 120000;
+    e.currentTarget.textContent = 'Silenciado por 2 minutos';
+    setTimeout(() => { $('[data-al-silenciar]').textContent = 'Silenciar por 2 minutos'; }, 120000);
+  });
+  // notificação do sistema (aparece mesmo com o navegador minimizado), ligada de fábrica: o primeiro toque pede a permissão
+  function notifica(p) {
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const n = new Notification(`Pedido novo nº ${p.numero}`, { body: `${p.cliente_nome} · ${fmt(p.total_centavos)} · ${p.modalidade === 'retirada' ? 'retirada' : 'entrega'}`, icon: '../assets/img/icon-192.png', tag: `cx-novo-${p.id}`, requireInteraction: true });
+      n.onclick = () => { window.focus(); abrePedido(p.id); n.close(); };
+    } catch (e) {}
   }
 
   /* ---------- conferência automática ---------- */
@@ -438,7 +522,7 @@
         c.addEventListener('click', () => {
           const box = el('div', 'cancel-box');
           const lab = el('label', 'field');
-          lab.append(el('span', null, 'Motivo do cancelamento (opcional)'));
+          lab.append(el('span', null, 'Motivo do cancelamento (o cliente vê no acompanhamento)'));
           const ta = el('textarea', 'input'); ta.rows = 2; ta.maxLength = 300; lab.appendChild(ta);
           const ok = el('button', 'btn btn-red', 'Confirmar cancelamento'); ok.type = 'button';
           const volta = el('button', 'link', 'Voltar'); volta.type = 'button';
@@ -539,7 +623,10 @@
       lojaAberta = c.aceitando_pedidos !== false;
       marcaConexao();
       cfgForm.mensagem_pausa.value = c.mensagem_pausa || '';
-      cfgForm.taxa.value = reais(c.taxa_entrega_centavos);
+      montaHorario(c.horarios);
+      $('[data-faixas]').innerHTML = '';
+      (c.taxas_entrega || []).forEach(linhaFaixa);
+      cfgForm.gratis.value = c.entrega_gratis_acima_centavos != null ? reais(c.entrega_gratis_acima_centavos) : '';
       cfgForm.minimo.value = c.pedido_minimo_centavos ? reais(c.pedido_minimo_centavos) : '';
       cfgForm.raio.value = String(c.raio_entrega_km ?? 12).replace('.', ',');
       cfgForm.pagamentos.value = (c.pagamentos || []).join('\n');
@@ -553,21 +640,190 @@
     e.preventDefault();
     const err = $('[data-cfg-err]'), ok = $('[data-cfg-ok]'), btn = $('[data-cfg-btn]');
     err.hidden = true; ok.hidden = true;
-    const taxa = centavos(cfgForm.taxa.value), minimo = centavos(cfgForm.minimo.value);
+    const minimo = centavos(cfgForm.minimo.value), gratis = centavos(cfgForm.gratis.value);
+    const horarios = leHorario(), faixas = leFaixas();
+    if (horarios.erro || faixas.erro) { err.textContent = horarios.erro || faixas.erro; err.hidden = false; return; }
     const pags = cfgForm.pagamentos.value.split('\n').map(x => x.trim()).filter(Boolean);
     const raio = Math.round(parseFloat(String(cfgForm.raio.value || '12').replace(',', '.')) * 10) / 10;
     if (!(raio >= 1 && raio <= 50)) { err.textContent = 'O raio de entrega precisa ficar entre 1 e 50 km.'; err.hidden = false; return; }
-    if (Number.isNaN(taxa) || Number.isNaN(minimo) || (taxa != null && taxa > 100000)) { err.textContent = 'Confira os valores em reais (ex.: 5,00).'; err.hidden = false; return; }
+    if (Number.isNaN(minimo) || Number.isNaN(gratis)) { err.textContent = 'Confira os valores em reais (ex.: 5,00).'; err.hidden = false; return; }
     if (!pags.length) { err.textContent = 'Deixe pelo menos uma forma de pagamento.'; err.hidden = false; return; }
     btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
     try {
-      await api('salvar_config', null, { p: { aceitando_pedidos: cfgForm.aceitando_pedidos.checked, mensagem_pausa: cfgForm.mensagem_pausa.value, taxa_entrega_centavos: taxa == null ? '' : taxa, pedido_minimo_centavos: minimo || 0, pagamentos: pags, raio_entrega_km: raio } });
+      await api('salvar_config', null, { p: { aceitando_pedidos: cfgForm.aceitando_pedidos.checked, mensagem_pausa: cfgForm.mensagem_pausa.value, pedido_minimo_centavos: minimo || 0, pagamentos: pags, raio_entrega_km: raio,
+        horarios: horarios.lista, taxas_entrega: faixas.lista, entrega_gratis_acima_centavos: gratis == null ? '' : gratis } });
       ok.hidden = false;
       await carregaConfig();
       atualiza({ silencioso: true });
     } catch (ex) { err.textContent = textoErro(ex); err.hidden = false; }
     finally { btn.removeAttribute('aria-busy'); btn.disabled = false; }
   });
+  // horário: uma linha por dia (segunda primeiro), com "Abre" e as horas
+  const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  function montaHorario(h) {
+    const box = $('[data-horario]');
+    box.innerHTML = '';
+    [1, 2, 3, 4, 5, 6, 0].forEach(d => {
+      const v = Array.isArray(h) && Array.isArray(h[d]) ? h[d] : null;
+      const li = el('div', `dia-linha${v ? '' : ' fechado'}`); li.dataset.dia = d;
+      const lab = el('label', 'check'), cb = el('input'); cb.type = 'checkbox'; cb.checked = !!v; cb.dataset.abre = '';
+      lab.append(cb, el('span', null, 'Abre'));
+      const horas = el('div', 'horas'), a = el('input'), b = el('input');
+      a.type = b.type = 'time'; a.value = v ? v[0] : '09:00'; b.value = v ? v[1] : '21:00'; a.dataset.a = ''; b.dataset.b = '';
+      a.setAttribute('aria-label', `${DIAS[d]}: abre às`); b.setAttribute('aria-label', `${DIAS[d]}: fecha às`);
+      horas.append(a, el('span', null, 'às'), b);
+      cb.addEventListener('change', () => li.classList.toggle('fechado', !cb.checked));
+      li.append(el('b', null, DIAS[d]), lab, horas);
+      box.appendChild(li);
+    });
+  }
+  function leHorario() {
+    const lista = Array(7).fill(null);
+    for (const li of $$('.dia-linha')) {
+      if (!$('[data-abre]', li).checked) continue;
+      const a = $('[data-a]', li).value, b = $('[data-b]', li).value;
+      if (!a || !b || a === b) return { erro: `Confira o horário de ${DIAS[+li.dataset.dia].toLowerCase()}: abrir e fechar precisam ser diferentes.` };
+      lista[+li.dataset.dia] = [a, b];
+    }
+    return { lista };
+  }
+  // faixas de taxa: "Até X km: R$ Y"
+  function linhaFaixa(f) {
+    const li = el('div', 'faixa');
+    const km = el('input', 'input num'); km.inputMode = 'decimal'; km.dataset.km = ''; km.setAttribute('aria-label', 'Até quantos km');
+    const rs = el('input', 'input num'); rs.inputMode = 'decimal'; rs.dataset.rs = ''; rs.placeholder = '0,00'; rs.setAttribute('aria-label', 'Taxa em reais');
+    if (f) { km.value = String(f.ate_km).replace('.', ','); rs.value = reais(f.centavos); }
+    const rm = el('button', 'icon-btn'); rm.type = 'button'; rm.title = 'Tirar esta faixa'; rm.append(ico('i-x'), el('span', 'sr', 'Tirar esta faixa'));
+    rm.addEventListener('click', () => li.remove());
+    li.append(el('span', null, 'Até'), km, el('span', null, 'km: R$'), rs, el('span', 'faixa-r'), rm);
+    $('[data-faixas]').appendChild(li);
+  }
+  $('[data-faixa-nova]').addEventListener('click', () => { linhaFaixa(); const k = $$('[data-faixas] [data-km]'); k[k.length - 1].focus(); });
+  function leFaixas() {
+    const lista = [], vistos = new Set();
+    for (const li of $$('[data-faixas] .faixa')) {
+      const kmTxt = $('[data-km]', li).value.trim(), rsTxt = $('[data-rs]', li).value.trim();
+      if (!kmTxt && !rsTxt) continue;
+      const km = Math.round(parseFloat(kmTxt.replace(',', '.')) * 10) / 10, c = centavos(rsTxt || '0');
+      if (!(km >= 0.5 && km <= 50) || vistos.has(km)) return { erro: 'Cada faixa precisa de uma distância entre 0,5 e 50 km, sem repetir.' };
+      if (Number.isNaN(c) || c == null || c < 0 || c > 20000) return { erro: 'A taxa de cada faixa vai de R$ 0,00 a R$ 200,00.' };
+      vistos.add(km); lista.push({ ate_km: km, centavos: c });
+    }
+    return { lista: lista.sort((a, b) => a.ate_km - b.ate_km) };
+  }
+
+  /* ---------- relatórios ---------- */
+  const rel = { periodo: '30', ag: null, me: 'centavos', testes: false, dados: null, antes: null, de: null, ate: null };
+  const SP = 3 * 3600e3;
+  const fMes = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', month: 'short', year: '2-digit' });
+  const fDiaMes = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit' });
+  const fDiaLongo = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', weekday: 'short', day: '2-digit', month: '2-digit' });
+  const curto = c => { const r = c / 100; return r >= 1000 ? `R$ ${(r / 1000).toFixed(r >= 10000 ? 0 : 1).replace('.', ',')} mil` : `R$ ${Math.round(r)}`; };
+  const pct = (a, t) => (t ? `${Math.round((a / t) * 100)}%` : '0%');
+  function periodoRel() {
+    const amanha = new Date(new Date(inicioDia(0)).getTime() + 864e5);
+    if (rel.periodo === 'mes' || rel.periodo === 'mes-1') {
+      const sp = new Date(Date.now() - SP); let y = sp.getUTCFullYear(), m = sp.getUTCMonth();
+      if (rel.periodo === 'mes-1') { m -= 1; if (m < 0) { m = 11; y -= 1; } }
+      return { de: new Date(Date.UTC(y, m, 1) + SP), ate: rel.periodo === 'mes' ? amanha : new Date(Date.UTC(y, m + 1, 1) + SP) };
+    }
+    return { de: new Date(amanha.getTime() - +rel.periodo * 864e5), ate: amanha };
+  }
+  $$('[data-r]').forEach(b => b.addEventListener('click', () => {
+    rel.periodo = b.dataset.r; rel.ag = null;
+    $$('[data-r]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    carregaRelatorio();
+  }));
+  $('[data-rel-testes]').addEventListener('change', e => { rel.testes = e.target.checked; carregaRelatorio(); });
+  $$('[data-ag]').forEach(b => b.addEventListener('click', () => { rel.ag = b.dataset.ag; desenhaSerie(); }));
+  $$('[data-me]').forEach(b => b.addEventListener('click', () => { rel.me = b.dataset.me; $$('[data-me]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); desenhaSerie(); }));
+  async function carregaRelatorio() {
+    const { de, ate } = periodoRel(), dur = ate - de, de0 = new Date(de.getTime() - dur);
+    rel.de = de; rel.ate = ate;
+    const dias = Math.round(dur / 864e5);
+    $('[data-rel-periodo]').textContent = `De ${fDiaMes.format(new Date(de.getTime() - SP))} a ${fDiaMes.format(new Date(ate.getTime() - SP - 1))} (${dias} ${dias === 1 ? 'dia' : 'dias'}), comparado com os ${dias} dias antes. Cancelados ficam fora das vendas.`;
+    try {
+      const [a, b] = await Promise.all([
+        api('relatorio', { de: de.toISOString(), ate: ate.toISOString(), teste: rel.testes }),
+        api('relatorio', { de: de0.toISOString(), ate: de.toISOString(), teste: rel.testes }),
+      ]);
+      rel.dados = a; rel.antes = b;
+      desenhaRelatorio();
+    } catch (e) { toast('Não deu para abrir os relatórios', textoErro(e), { erro: true }); }
+  }
+  function stat(rot, val, atual, antes, bomSobe = true, sufixo = '') {
+    const d = el('div', 'stat');
+    d.append(el('span', null, rot), el('b', null, val));
+    const small = el('small');
+    if (antes > 0) {
+      const v = (atual - antes) / antes, sobe = v > 0.005, desce = v < -0.005;
+      const i = el('i', sobe === bomSobe && (sobe || desce) ? 'bom' : (sobe || desce) ? 'ruim' : '', `${sobe ? '▲' : desce ? '▼' : '='} ${Math.abs(Math.round(v * 100))}%`);
+      small.append(i, ` vs. período anterior${sufixo}`);
+    } else small.textContent = antes === 0 && atual > 0 ? 'sem vendas no período anterior' : ' ';
+    d.appendChild(small);
+    return d;
+  }
+  function desenhaRelatorio() {
+    const r = rel.dados, a = rel.antes, R = r.resumo, A = a.resumo;
+    const ticket = R.pedidos ? Math.round(R.faturamento_centavos / R.pedidos) : 0, ticketA = A.pedidos ? Math.round(A.faturamento_centavos / A.pedidos) : 0;
+    const cancel = R.pedidos + R.cancelados ? R.cancelados / (R.pedidos + R.cancelados) : 0, cancelA = A.pedidos + A.cancelados ? A.cancelados / (A.pedidos + A.cancelados) : 0;
+    const k = $('[data-rel-kpis]'); k.innerHTML = '';
+    k.append(
+      stat('Faturamento', fmt(R.faturamento_centavos), R.faturamento_centavos, A.faturamento_centavos),
+      stat('Pedidos', String(R.pedidos), R.pedidos, A.pedidos),
+      stat('Ticket médio', fmt(ticket), ticket, ticketA),
+      stat('Clientes diferentes', String(R.clientes), R.clientes, A.clientes),
+      stat('Taxas de entrega', fmt(R.taxas_centavos), R.taxas_centavos, A.taxas_centavos),
+      stat('Cancelados', `${R.cancelados} (${Math.round(cancel * 100)}%)`, cancel, cancelA, false),
+    );
+    desenhaSerie();
+    const DS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], DSL = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    const sem = DS.map((rot, i) => { const x = r.semana.find(w => w.dow === i) || { pedidos: 0, centavos: 0 }; return { rot, valor: x.pedidos, dica: [[DSL[i]], ['Pedidos', String(x.pedidos)], ['Faturamento', fmt(x.centavos)]] }; });
+    CxGraf.colunas($('[data-g=semana]'), sem, { titulo: 'Pedidos por dia da semana', tabela: { cab: ['Dia', 'Pedidos', 'Faturamento'], linhas: sem.map((d, i) => [DSL[i], String(d.valor), d.dica[2][1]]) } });
+    const horas = Array.from({ length: 24 }, (_, h) => { const x = r.horas.find(w => w.hora === h) || { pedidos: 0 }; return { rot: `${h}h`, valor: x.pedidos, dica: [[`${h}h às ${h + 1}h`], ['Pedidos', String(x.pedidos)]] }; });
+    const usadas = horas.filter(h => h.valor > 0).map(h => parseInt(h.rot, 10));
+    const h0 = usadas.length ? Math.max(0, Math.min(8, ...usadas)) : 8, h1 = usadas.length ? Math.min(23, Math.max(22, ...usadas)) : 22;
+    CxGraf.colunas($('[data-g=horas]'), horas.slice(h0, h1 + 1), { titulo: 'Pedidos por hora', rotA: 2, tabela: { cab: ['Hora', 'Pedidos'], linhas: horas.filter(h => h.valor).map(h => [h.dica[0][0], String(h.valor)]) } });
+    const prod = r.produtos.map(p => ({ rot: p.nome, valor: p.quantidade, extra: fmt(p.centavos), dica: [[p.nome], ['Unidades', String(p.quantidade)], ['Vendido', fmt(p.centavos)]] }));
+    CxGraf.barras($('[data-g=produtos]'), prod, { fmt: v => `${v} un`, tabela: { cab: ['Produto', 'Unidades', 'Vendido'], linhas: r.produtos.map(p => [p.nome, String(p.quantidade), fmt(p.centavos)]) } });
+    const comSabor = r.sabores.length ? R.pedidos : 0;
+    CxGraf.barras($('[data-g=sabores]'), r.sabores.map(x => ({ rot: x.sabor, valor: x.pedidos, dica: [[x.sabor], ['Pedidos', String(x.pedidos)], ['Dos pedidos', pct(x.pedidos, comSabor)]] })),
+      { fmt: v => `${v}`, vazio: 'Nenhum sabor escolhido no período.', tabela: { cab: ['Sabor', 'Pedidos'], linhas: r.sabores.map(x => [x.sabor, String(x.pedidos)]) } });
+    CxGraf.barras($('[data-g=bairros]'), r.bairros.map(x => ({ rot: x.bairro, valor: x.pedidos, extra: `${fmt(x.centavos)}${x.km != null ? ` · ${String(x.km).replace('.', ',')} km em média` : ''}`, dica: [[x.bairro], ['Entregas', String(x.pedidos)], ['Vendido', fmt(x.centavos)]] })),
+      { fmt: v => `${v}`, vazio: 'Sem entregas com bairro no período.', tabela: { cab: ['Bairro', 'Entregas', 'Vendido', 'Distância média'], linhas: r.bairros.map(x => [x.bairro, String(x.pedidos), fmt(x.centavos), x.km != null ? `${x.km} km` : '']) } });
+    CxGraf.radar($('[data-g=radar]'), r.pontos, r.loja || [-20.4317, -49.9475, 12]);
+    const dist = Array.from({ length: 12 }, (_, i) => { const x = r.distancias.find(d => d.faixa === i) || { pedidos: 0 }; return { rot: `${i}-${i + 1}`, valor: x.pedidos, dica: [[`De ${i} a ${i + 1} km`], ['Entregas', String(x.pedidos)]] }; });
+    const ultimo = Math.max(3, ...dist.map((d, i) => (d.valor ? i + 1 : 0)));
+    CxGraf.colunas($('[data-g=distancias]'), dist.slice(0, ultimo), { titulo: 'Entregas por distância', vazio: 'Sem entregas com distância no período.', fmt: v => String(v), tabela: { cab: ['Distância', 'Entregas'], linhas: dist.filter(d => d.valor).map(d => [`${d.rot} km`, String(d.valor)]) } });
+    const tp = r.pagamentos.reduce((n, x) => n + x.pedidos, 0);
+    CxGraf.barras($('[data-g=pagamentos]'), r.pagamentos.map(x => ({ rot: x.pagamento, valor: x.pedidos, extra: pct(x.pedidos, tp), dica: [[x.pagamento], ['Pedidos', String(x.pedidos)], ['Do total', pct(x.pedidos, tp)]] })), { fmt: v => `${v}` });
+    const tm = R.entregas + R.retiradas;
+    CxGraf.barras($('[data-g=modalidades]'), [{ rot: 'Entrega', valor: R.entregas, extra: `${pct(R.entregas, tm)}${R.km_medio != null ? ` · ${String(R.km_medio).replace('.', ',')} km em média` : ''}` }, { rot: 'Retirada na loja', valor: R.retiradas, extra: pct(R.retiradas, tm) }], { fmt: v => `${v}` });
+  }
+  // vendas no tempo: dia a dia, por semana (começando na segunda) ou por mês; dias sem venda entram com zero
+  function desenhaSerie() {
+    if (!rel.dados) return;
+    const dias = Math.round((rel.ate - rel.de) / 864e5);
+    const ag = rel.ag || (dias <= 31 ? 'dia' : dias <= 120 ? 'semana' : 'mes');
+    $$('[data-ag]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.ag === ag)));
+    const mapa = new Map(rel.dados.dias.map(d => [String(d.dia).slice(0, 10), d]));
+    const grupos = new Map();
+    for (let t = rel.de.getTime() - SP; t < rel.ate.getTime() - SP; t += 864e5) {
+      const dia = new Date(t), chaveDia = dia.toISOString().slice(0, 10), x = mapa.get(chaveDia) || { pedidos: 0, centavos: 0 };
+      let chave = chaveDia, rot = fDiaMes.format(dia), titulo = fDiaLongo.format(dia);
+      if (ag === 'semana') { const seg = new Date(t - ((dia.getUTCDay() + 6) % 7) * 864e5); chave = seg.toISOString().slice(0, 10); rot = fDiaMes.format(seg); titulo = `Semana de ${fDiaMes.format(seg)}`; }
+      if (ag === 'mes') { chave = chaveDia.slice(0, 7); rot = fMes.format(dia).replace('. de ', '/').replace('.', ''); titulo = rot; }
+      const g = grupos.get(chave) || { rot, titulo, pedidos: 0, centavos: 0 };
+      g.pedidos += x.pedidos; g.centavos += x.centavos; grupos.set(chave, g);
+    }
+    const lista = [...grupos.values()], ehR = rel.me === 'centavos';
+    $('[data-serie-sub]').textContent = `${ehR ? 'faturamento' : 'pedidos'} por ${ag === 'dia' ? 'dia' : ag === 'semana' ? 'semana' : 'mês'}, sem os cancelados`;
+    CxGraf.colunas($('[data-g=serie]'), lista.map(g => ({ rot: g.rot, valor: ehR ? g.centavos : g.pedidos, dica: [[g.titulo], ['Faturamento', fmt(g.centavos)], ['Pedidos', String(g.pedidos)], ['Ticket médio', g.pedidos ? fmt(Math.round(g.centavos / g.pedidos)) : '-']] })),
+      { titulo: 'Vendas no período', altura: 240, fmt: ehR ? curto : (v => String(v)), tabela: { cab: [ag === 'dia' ? 'Dia' : ag === 'semana' ? 'Semana' : 'Mês', 'Pedidos', 'Faturamento'], linhas: lista.map(g => [g.titulo, String(g.pedidos), fmt(g.centavos)]) } });
+  }
+  let tRedesenha = 0;
+  addEventListener('resize', () => { clearTimeout(tRedesenha); tRedesenha = setTimeout(() => { if (aba === 'relatorios' && rel.dados) desenhaRelatorio(); }, 200); });
+
   $('[data-apagar-testes]').addEventListener('click', async e => {
     if (!confirm('Apagar todos os pedidos marcados como teste? Os pedidos reais não são apagados.')) return;
     const msg = $('[data-apagar-msg]'), b = e.currentTarget;
@@ -743,7 +999,7 @@
     mostraTela('config');
   }
   function para() {
-    eu = null; clearTimeout(tConf); clearTimeout(tBusca); clearInterval(tAlarme);
+    eu = null; clearTimeout(tConf); clearTimeout(tBusca); clearInterval(tAlarme); fechaAlarme(); reconhecidos.clear();
     novosAgora = 0; conhecidos = null; marca = null; marcaChave = ''; avisados.clear(); fechaPedido();
     document.title = 'Painel · Coxitas';
   }
@@ -767,6 +1023,9 @@
     $('[data-me-papel]').textContent = eu.papel === 'dono' ? 'Dono' : 'Atendente';
     mostraTela('app');
     marcaConexao();
+    // som ligado mas o navegador ainda não deixou tocar: pede um toque na tela
+    if (som && garanteAudio() && audio.state !== 'running') audio.resume().then(() => { somBloqueado.hidden = audio.state === 'running'; }).catch(() => { somBloqueado.hidden = false; });
+    setTimeout(() => { if (eu && som && audio && audio.state !== 'running') somBloqueado.hidden = false; }, 600);
     vaiPara(location.hash.slice(1) || 'quadro');
   }
 

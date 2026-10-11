@@ -47,7 +47,7 @@ export default {
           const ruim = respostaEndereco(c);
           if (ruim) return ruim;
           p.endereco = `${c.rua}, ${numero} - ${bairro}${comp ? ` (${comp})` : ''}`.slice(0, 200);
-          geo = { lat: c.lat, lng: c.lng };
+          geo = { lat: c.lat, lng: c.lng, rua: c.rua };
         }
         const r = await q('select public.criar_pedido($1::jsonb, $2::jsonb) as r', [JSON.stringify(p), geo && JSON.stringify(geo)]);
         return json(200, r.rows[0].r);
@@ -56,8 +56,8 @@ export default {
         if (!(await dentroDoLimite(`endereco:${ip(req)}`, 40, 600))) return json(429, { erro: 'muitas_tentativas' });
         const rua = texto(b.rua, 120);
         if (rua.length < 3) return json(400, { erro: 'endereco_invalido' });
-        const c = await conferirEntrega(rua);
-        return respostaEndereco(c) || json(200, { ok: true, km: c.km, raio: c.raio, rua: c.rua });
+        const c = await conferirEntrega(rua, b.subtotal);
+        return respostaEndereco(c) || json(200, { ok: true, km: c.km, raio: c.raio, rua: c.rua, taxa_centavos: c.taxa });
       }
       if (acao === 'acompanhar') {
         if (!(await dentroDoLimite(`rastreio:${ip(req)}`, 60, 600))) return json(429, { erro: 'muitas_tentativas' });

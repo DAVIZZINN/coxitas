@@ -5,6 +5,8 @@
   // o endereço oficial é o da Vercel (o link antigo do GitHub Pages leva para lá)
   if (/\.github\.io$/.test(location.hostname)) { location.replace('https://coxitas.vercel.app/pedido/' + location.search); return; }
   const $ = (s, r = document) => r.querySelector(s);
+  // animações: as mesmas do site (quem desligou no rodapé do site fica sem aqui também)
+  try { if (localStorage.getItem('cx-anim') === 'off') document.documentElement.classList.add('rm'); } catch (e) {}
 
   const NOME = { novo: 'Recebido', confirmado: 'Confirmado', em_preparo: 'Em preparo', saiu_entrega: 'Saiu para entrega', pronto_retirada: 'Pronto para retirada', concluido: 'Concluído', cancelado: 'Cancelado' };
   const MSG = {
@@ -65,7 +67,50 @@
 
   function el(tag, cls, txt) { const x = document.createElement(tag); if (cls) x.className = cls; if (txt != null) x.textContent = txt; return x; }
 
+  /* ---------- avisos: som, vibração e notificação quando o pedido muda ---------- */
+  let som = null;
+  const ligaSom = () => { try { som = som || new (window.AudioContext || window.webkitAudioContext)(); if (som.state === 'suspended') som.resume(); } catch (e) {} };
+  addEventListener('pointerdown', ligaSom, { passive: true });
+  function toca(notas) {
+    if (!som || som.state !== 'running') return;
+    const t0 = som.currentTime;
+    notas.forEach(([f, dt, dur, tipo]) => {
+      const o = som.createOscillator(), g = som.createGain();
+      o.type = tipo || 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + dt); g.gain.exponentialRampToValueAtTime(0.55, t0 + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + dur);
+      o.connect(g).connect(som.destination); o.start(t0 + dt); o.stop(t0 + dt + dur + 0.02);
+    });
+  }
+  const temNotif = 'Notification' in window;
+  const btnAvisos = $('[data-avisos]');
+  function syncAvisos() {
+    const ok = temNotif && Notification.permission === 'granted';
+    btnAvisos.setAttribute('aria-pressed', String(ok));
+    btnAvisos.textContent = ok ? 'Avisos ligados neste aparelho' : temNotif && Notification.permission === 'denied' ? 'Avisos bloqueados no navegador (o som continua)' : 'Me avisar quando o pedido mudar';
+  }
+  btnAvisos.addEventListener('click', async () => {
+    ligaSom();
+    if (temNotif && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (e) {} }
+    syncAvisos();
+    toca([[784, 0, .14], [1046, .15, .24]]);
+  });
+  function avisa(p, antes) {
+    const cancel = p.status === 'cancelado';
+    if (cancel) toca([[880, 0, .22, 'square'], [660, .26, .22, 'square'], [880, .52, .22, 'square'], [660, .78, .22, 'square'], [880, 1.04, .4, 'square']]);
+    else toca([[784, 0, .16], [1046, .17, .3]]);
+    try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(cancel ? [300, 120, 300, 120, 600] : [120, 60, 120]); } catch (e) {}
+    try {
+      if (temNotif && Notification.permission === 'granted' && document.hidden) {
+        new Notification(cancel ? `Pedido nº ${p.numero} foi cancelado` : `Pedido nº ${p.numero}: ${NOME[p.status]}`,
+          { body: cancel ? (p.motivo ? `Motivo: ${p.motivo}` : 'Toque para ver.') : (typeof MSG[p.status] === 'function' ? MSG[p.status](p.modalidade) : MSG[p.status]), icon: '../assets/img/icon-192.png', tag: `cx-pedido-${p.numero}` });
+      }
+    } catch (e) {}
+    if (cancel) { const c = $('[data-ped-cancel]'); c.classList.remove('alerta'); void c.offsetWidth; c.classList.add('alerta'); scrollTo({ top: 0, behavior: 'smooth' }); }
+    if (antes) document.title = `• ${document.title}`;
+  }
+
   function mostra(p) {
+    const antes = atual && atual.numero === p.numero ? atual.status : null;
     atual = p;
     find.hidden = true; loading.hidden = true; ped.hidden = false;
     document.title = `Pedido nº ${p.numero} · ${NOME[p.status] || ''} · Coxitas`;
@@ -77,6 +122,15 @@
     const m = MSG[p.status];
     $('[data-ped-msg]').textContent = typeof m === 'function' ? m(p.modalidade) : m;
     $('[data-ped-cancel]').hidden = p.status !== 'cancelado';
+    $('[data-ped-cancel] span').textContent = p.motivo
+      ? `Este pedido foi cancelado. Motivo: ${p.motivo}. Se tiver dúvida, fale com a Coxitas pelo WhatsApp.`
+      : 'Este pedido foi cancelado. Se tiver dúvida, fale com a Coxitas pelo WhatsApp.';
+    if (window.CxCena) window.CxCena.desenha($('[data-cena]'), p.status, p.modalidade);
+    btnAvisos.hidden = p.status === 'concluido' || p.status === 'cancelado';
+    syncAvisos();
+    // o aviso do site (cartão no topo) usa a mesma marca: assim ninguém toca duas vezes pela mesma mudança
+    try { localStorage.setItem('cx-vivo-visto', `${p.numero}|${p.status}`); } catch (e) {}
+    if (antes && antes !== p.status) avisa(p, antes);
 
     // linha do tempo: os passos do tipo de pedido, com o horário de cada um
     const passos = ['novo', 'confirmado', 'em_preparo', p.modalidade === 'retirada' ? 'pronto_retirada' : 'saiu_entrega', 'concluido'];
@@ -119,12 +173,11 @@
     const fim = p.status === 'concluido' || p.status === 'cancelado';
     $('[data-ped-upd]').textContent = fim ? '' : `Esta página se atualiza sozinha. Última conferida às ${hora.format(new Date())}.`;
     clearTimeout(timer);
-    if (!fim) timer = setTimeout(atualiza, 30000);
+    if (!fim) timer = setTimeout(atualiza, document.hidden ? 45000 : 15000);
   }
 
   async function atualiza() {
     if (!atual) return;
-    if (document.hidden) { timer = setTimeout(atualiza, 30000); return; }
     try {
       const p = await api({ numero: atual.numero, codigo: atual.codigo });
       if (p && !p.erro) mostra(p); else timer = setTimeout(atualiza, 30000);
@@ -168,9 +221,13 @@
   // começo: link com número e código abre direto; sem isso, mostra a busca
   const q = new URLSearchParams(location.search);
   const n = (q.get('n') || '').replace(/\D/g, ''), c = (q.get('c') || '').toLowerCase();
-  if (n && /^[0-9a-f]{32}$/.test(c)) {
+  // sem número no endereço: abre direto o último pedido feito neste aparelho (sem precisar digitar nada)
+  const ultimo = !n ? meus()[0] : null;
+  if (ultimo && /^[0-9a-f]{32}$/.test(ultimo.c)) history.replaceState(null, '', `?n=${encodeURIComponent(ultimo.n)}&c=${encodeURIComponent(ultimo.c)}`);
+  const num = n || (ultimo ? String(ultimo.n) : ''), cod = n ? c : (ultimo ? ultimo.c : '');
+  if (num && /^[0-9a-f]{32}$/.test(cod)) {
     loading.hidden = false;
-    api({ numero: n, codigo: c })
+    api({ numero: num, codigo: cod })
       .then(p => { if (p.erro) mostraBusca(ERRO[p.erro] || ERRO.nao_encontrado); else { guarda(p); mostra(p); } })
       .catch(err => semApi(err) || mostraBusca(err && err.rede ? 'Sem conexão agora. Tente de novo em instantes.' : 'Não deu para consultar agora.'));
   } else mostraBusca();
