@@ -22,6 +22,10 @@ create table if not exists public.loja_config (
   atualizado_em timestamptz not null default now()
 );
 insert into public.loja_config (id) values (1) on conflict (id) do nothing;
+-- área de entrega: raio em linha reta a partir da loja (R. Francisco Pelegrini, 5819, Votuporanga)
+alter table public.loja_config add column if not exists raio_entrega_km numeric(4,1) not null default 12 check (raio_entrega_km between 1 and 50);
+alter table public.loja_config add column if not exists loja_lat double precision not null default -20.4317;
+alter table public.loja_config add column if not exists loja_lng double precision not null default -49.9475;
 
 -- ---------- cardápio (o preço que vale é o daqui; o site só mostra) ----------
 create table if not exists public.produtos (
@@ -71,6 +75,17 @@ create table if not exists public.pedidos (
 create index if not exists pedidos_criado_idx on public.pedidos (criado_em desc);
 create index if not exists pedidos_status_idx on public.pedidos (status, criado_em desc);
 create index if not exists pedidos_telefone_idx on public.pedidos (cliente_telefone, criado_em desc);
+-- onde fica a entrega no mapa (rua conferida no OpenStreetMap pelo servidor) e a distância da loja
+alter table public.pedidos add column if not exists entrega_lat double precision;
+alter table public.pedidos add column if not exists entrega_lng double precision;
+alter table public.pedidos add column if not exists entrega_km numeric(5,1);
+
+-- ruas já conferidas no mapa (o servidor não pergunta de novo a cada pedido)
+create table if not exists public.geo_cache (
+  chave text primary key,
+  resultado jsonb not null,
+  criado_em timestamptz not null default now()
+);
 
 create table if not exists public.pedido_itens (
   id bigint generated always as identity primary key,
@@ -168,6 +183,13 @@ begin
   raise exception using errcode = 'P0001', message = codigo, detail = coalesce(detalhe, '');
 end $$;
 
+-- distância em linha reta, em km (fórmula de haversine)
+create or replace function public.distancia_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision)
+returns double precision language sql immutable as $$
+  select 2 * 6371 * asin(sqrt(power(sin(radians(lat2 - lat1) / 2), 2)
+    + cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)));
+$$;
+
 -- o pedido completo como JSON (usado pelo painel)
 create or replace function public.pedido_json(p public.pedidos) returns jsonb
 language sql stable security definer set search_path = public, pg_temp as $$
@@ -178,6 +200,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     'troco_para_centavos', p.troco_para_centavos, 'observacao', p.observacao, 'sabores', to_jsonb(p.sabores),
     'subtotal_centavos', p.subtotal_centavos, 'taxa_entrega_centavos', p.taxa_entrega_centavos,
     'total_centavos', p.total_centavos, 'teste', p.teste, 'origem', p.origem,
+    'entrega_km', p.entrega_km, 'entrega_lat', p.entrega_lat, 'entrega_lng', p.entrega_lng,
     'itens', coalesce((select jsonb_agg(jsonb_build_object('produto_id', i.produto_id, 'nome', i.nome, 'detalhe', i.detalhe,
         'preco_unit_centavos', i.preco_unit_centavos, 'quantidade', i.quantidade, 'total_centavos', i.total_centavos) order by i.id)
       from public.pedido_itens i where i.pedido_id = p.id), '[]'::jsonb)
@@ -207,12 +230,14 @@ language sql stable security definer set search_path = public, pg_temp as $$
   select jsonb_build_object(
     'aceitando_pedidos', c.aceitando_pedidos, 'mensagem_pausa', c.mensagem_pausa,
     'taxa_entrega_centavos', c.taxa_entrega_centavos, 'pedido_minimo_centavos', c.pedido_minimo_centavos,
-    'pagamentos', to_jsonb(c.pagamentos), 'sabores', to_jsonb(c.sabores)
+    'pagamentos', to_jsonb(c.pagamentos), 'sabores', to_jsonb(c.sabores), 'raio_entrega_km', c.raio_entrega_km
   ) from public.loja_config c where c.id = 1;
 $$;
 
 -- recebe o pedido do site. O preço é sempre o do banco: o que o navegador mandar de valor é ignorado.
-create or replace function public.criar_pedido(p jsonb) returns jsonb
+-- p_geo vem do servidor (rua conferida no mapa), nunca do navegador: {lat, lng}
+drop function if exists public.criar_pedido(jsonb);
+create or replace function public.criar_pedido(p jsonb, p_geo jsonb default null) returns jsonb
 language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
   cfg public.loja_config;
@@ -225,6 +250,7 @@ declare
   v_sub integer := 0; v_taxa integer; v_n integer := 0;
   v_ped public.pedidos;
   v_existente public.pedidos;
+  v_lat double precision; v_lng double precision; v_km double precision;
 begin
   if p is null or jsonb_typeof(p) <> 'object' then perform public.falha('pedido_invalido'); end if;
 
@@ -259,6 +285,18 @@ begin
   v_end := nullif(btrim(regexp_replace(coalesce(p ->> 'endereco', ''), '\s+', ' ', 'g')), '');
   if v_mod = 'entrega' then
     if v_end is null or char_length(v_end) < 5 or char_length(v_end) > 200 then perform public.falha('endereco_invalido'); end if;
+    -- só entrega dentro do raio da loja, com a rua achada no mapa
+    begin
+      v_lat := (p_geo ->> 'lat')::double precision;
+      v_lng := (p_geo ->> 'lng')::double precision;
+    exception when others then
+      v_lat := null;
+    end;
+    if v_lat is null or v_lng is null then perform public.falha('endereco_nao_encontrado'); end if;
+    v_km := public.distancia_km(cfg.loja_lat, cfg.loja_lng, v_lat, v_lng);
+    if v_km > cfg.raio_entrega_km then
+      perform public.falha('fora_da_area', round(v_km::numeric, 1)::text || '|' || cfg.raio_entrega_km::text);
+    end if;
   else
     v_end := null;
   end if;
@@ -322,8 +360,9 @@ begin
   v_taxa := case when v_mod = 'entrega' then cfg.taxa_entrega_centavos else 0 end;
 
   insert into public.pedidos (chave, cliente_nome, cliente_telefone, modalidade, endereco, pagamento, troco_para_centavos,
-    observacao, sabores, subtotal_centavos, taxa_entrega_centavos, total_centavos, teste)
-  values (v_chave, v_nome, v_tel, v_mod, v_end, v_pag, v_troco, v_obs, v_sab, v_sub, v_taxa, v_sub + coalesce(v_taxa, 0), v_teste)
+    observacao, sabores, subtotal_centavos, taxa_entrega_centavos, total_centavos, teste, entrega_lat, entrega_lng, entrega_km)
+  values (v_chave, v_nome, v_tel, v_mod, v_end, v_pag, v_troco, v_obs, v_sab, v_sub, v_taxa, v_sub + coalesce(v_taxa, 0), v_teste,
+    v_lat, v_lng, round(v_km::numeric, 1))
   on conflict (chave) do nothing
   returning * into v_ped;
 
@@ -503,6 +542,7 @@ begin
     mensagem_pausa = case when p ? 'mensagem_pausa' then nullif(btrim(p ->> 'mensagem_pausa'), '') else mensagem_pausa end,
     taxa_entrega_centavos = case when p ? 'taxa_entrega_centavos' then nullif(p ->> 'taxa_entrega_centavos', '')::integer else taxa_entrega_centavos end,
     pedido_minimo_centavos = case when p ? 'pedido_minimo_centavos' then coalesce(nullif(p ->> 'pedido_minimo_centavos', '')::integer, 0) else pedido_minimo_centavos end,
+    raio_entrega_km = case when p ? 'raio_entrega_km' then coalesce(nullif(p ->> 'raio_entrega_km', '')::numeric, raio_entrega_km) else raio_entrega_km end,
     pagamentos = coalesce(v_pag, pagamentos)
   where id = 1;
   return public.admin_config();

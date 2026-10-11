@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="preload" href="../assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/app.css?v=1">
-<link rel="stylesheet" href="admin.css?v=4">
+<link rel="stylesheet" href="admin.css?v=5">
 </head>
 <body>
 <svg class="sprite" aria-hidden="true">
@@ -200,6 +200,7 @@
           <div class="field"><label for="c-taxa">Taxa de entrega (R$)</label><input class="input num" id="c-taxa" name="taxa" inputmode="decimal" placeholder="Vazio = a combinar"></div>
           <div class="field"><label for="c-min">Pedido mínimo (R$)</label><input class="input num" id="c-min" name="minimo" inputmode="decimal" placeholder="0"></div>
         </div>
+        <div class="field"><label for="c-raio">Raio de entrega (km, em linha reta da loja)</label><input class="input num" id="c-raio" name="raio" inputmode="decimal" placeholder="12"><small class="muted dica">O site só aceita entrega em rua que existe no mapa e fica dentro desse raio. Votuporanga inteira cabe em 12 km.</small></div>
         <div class="field"><label for="c-pag">Formas de pagamento (uma por linha)</label><textarea class="input" id="c-pag" name="pagamentos" rows="4"></textarea></div>
         <p class="alert" data-cfg-err role="alert" hidden></p>
         <p class="ok-msg" data-cfg-ok role="status" hidden>Salvo.</p>
@@ -244,6 +245,6 @@
 
 <p class="center muted" data-v="carregando">Carregando…</p>
 
-<script src="admin.js?v=4"></script>
+<script src="admin.js?v=5"></script>
 </body>
 </html>

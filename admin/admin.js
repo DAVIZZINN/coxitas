@@ -294,7 +294,7 @@
     if (!fim) {
       abre.append(el('span', 'cp-itens', resumoItens(p)));
       const rec = el('span', 'cp-rec');
-      rec.append(ico(p.modalidade === 'retirada' ? 'i-bag' : 'i-moto'), p.modalidade === 'retirada' ? 'Retirada' : (p.endereco || 'Entrega'));
+      rec.append(ico(p.modalidade === 'retirada' ? 'i-bag' : 'i-moto'), p.modalidade === 'retirada' ? 'Retirada' : `${p.endereco || 'Entrega'}${p.entrega_km != null ? ` · ${String(p.entrega_km).replace('.', ',')} km` : ''}`);
       abre.append(rec);
       const l4 = el('span', 'cp-l4');
       l4.append(el('span', null, p.pagamento + (p.troco_para_centavos ? ` · troco p/ ${fmt(p.troco_para_centavos)}` : '')), el('b', null, fmt(p.total_centavos) + (p.modalidade === 'entrega' && p.taxa_entrega_centavos == null ? ' +' : '')));
@@ -471,6 +471,7 @@
     const rec = sec(p.modalidade === 'retirada' ? 'Retirada na loja' : 'Entrega');
     if (p.modalidade === 'entrega') {
       rec.appendChild(el('p', 'd-big', p.endereco));
+      if (p.entrega_km != null) rec.appendChild(el('p', 'muted', `Cerca de ${String(p.entrega_km).replace('.', ',')} km da loja (rua conferida no mapa)`));
       const mapa = el('a', 'btn btn-line btn-sm d-noprint'); mapa.append(ico('i-pin'), 'Abrir no mapa');
       mapa.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.endereco}, ${CIDADE}`)}`; mapa.target = '_blank'; mapa.rel = 'noopener';
       const r = el('div', 'd-row'); r.appendChild(mapa); rec.appendChild(r);
@@ -540,6 +541,7 @@
       cfgForm.mensagem_pausa.value = c.mensagem_pausa || '';
       cfgForm.taxa.value = reais(c.taxa_entrega_centavos);
       cfgForm.minimo.value = c.pedido_minimo_centavos ? reais(c.pedido_minimo_centavos) : '';
+      cfgForm.raio.value = String(c.raio_entrega_km ?? 12).replace('.', ',');
       cfgForm.pagamentos.value = (c.pagamentos || []).join('\n');
       const dono = eu && eu.papel === 'dono';
       $$('input, textarea, button', cfgForm).forEach(x => { x.disabled = !dono; });
@@ -553,11 +555,13 @@
     err.hidden = true; ok.hidden = true;
     const taxa = centavos(cfgForm.taxa.value), minimo = centavos(cfgForm.minimo.value);
     const pags = cfgForm.pagamentos.value.split('\n').map(x => x.trim()).filter(Boolean);
+    const raio = Math.round(parseFloat(String(cfgForm.raio.value || '12').replace(',', '.')) * 10) / 10;
+    if (!(raio >= 1 && raio <= 50)) { err.textContent = 'O raio de entrega precisa ficar entre 1 e 50 km.'; err.hidden = false; return; }
     if (Number.isNaN(taxa) || Number.isNaN(minimo) || (taxa != null && taxa > 100000)) { err.textContent = 'Confira os valores em reais (ex.: 5,00).'; err.hidden = false; return; }
     if (!pags.length) { err.textContent = 'Deixe pelo menos uma forma de pagamento.'; err.hidden = false; return; }
     btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
     try {
-      await api('salvar_config', null, { p: { aceitando_pedidos: cfgForm.aceitando_pedidos.checked, mensagem_pausa: cfgForm.mensagem_pausa.value, taxa_entrega_centavos: taxa == null ? '' : taxa, pedido_minimo_centavos: minimo || 0, pagamentos: pags } });
+      await api('salvar_config', null, { p: { aceitando_pedidos: cfgForm.aceitando_pedidos.checked, mensagem_pausa: cfgForm.mensagem_pausa.value, taxa_entrega_centavos: taxa == null ? '' : taxa, pedido_minimo_centavos: minimo || 0, pagamentos: pags, raio_entrega_km: raio } });
       ok.hidden = false;
       await carregaConfig();
       atualiza({ silencioso: true });

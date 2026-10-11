@@ -70,7 +70,7 @@
 <link rel="preload" href="assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" href="assets/img/poster-coxinha-480.webp" imagesrcset="assets/img/poster-coxinha-480.webp 480w, assets/img/poster-coxinha-720.webp 720w" imagesizes="(max-width: 639px) 46vw, 340px" fetchpriority="high">
-<link rel="stylesheet" href="assets/site.css?v=10">
+<link rel="stylesheet" href="assets/site.css?v=11">
 <script>
   // o endereço oficial é o da Vercel: quem abrir o link antigo do GitHub Pages vai direto para lá
   if (/\.github\.io$/.test(location.hostname)) location.replace('https://coxitas.vercel.app/' + location.pathname.replace(/^\/coxitas\/?/, '') + location.search + location.hash);
@@ -593,6 +593,15 @@
   </div>
 </footer>
 
+<!-- pedido em andamento: aparece enquanto o último pedido feito neste aparelho não foi entregue -->
+<div class="vivo" data-vivo hidden>
+  <a class="vivo-link" data-vivo-link href="pedido/">
+    <span class="vivo-ico"><svg class="ico" aria-hidden="true"><use href="#i-moto"/></svg></span>
+    <span class="vivo-txt"><small data-vivo-num>Seu pedido</small><b data-vivo-st>Recebido</b><span class="vivo-passos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span>
+    <span class="vivo-ir">Acompanhar<svg class="ico" aria-hidden="true"><use href="#i-right"/></svg></span>
+  </a>
+  <button class="vivo-x" type="button" data-vivo-x aria-label="Esconder o aviso do pedido"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+</div>
 <a class="wa-float" href="https://wa.me/5517996433594" data-wa target="_blank" rel="noopener" aria-label="Pedir pelo WhatsApp"><svg aria-hidden="true"><use href="#i-wa"/></svg></a>
 
 <div class="cartbar" id="cartbar" hidden>
@@ -640,7 +649,17 @@
         </fieldset>
         <div class="field"><label for="o-nome">Seu nome</label><input id="o-nome" name="nome" type="text" autocomplete="name" maxlength="80" placeholder="Como podemos te chamar?" required aria-describedby="e-nome"><p class="f-err" id="e-nome" hidden></p></div>
         <div class="field"><label for="o-tel">Telefone (WhatsApp)</label><input id="o-tel" name="telefone" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="20" placeholder="(17) 99999-9999" required aria-describedby="e-tel"><p class="f-err" id="e-tel" hidden></p></div>
-        <div class="field" data-end-field><label for="o-end">Endereço de entrega</label><input id="o-end" name="endereco" type="text" autocomplete="street-address" maxlength="200" placeholder="Rua, número, bairro e um ponto de referência" required aria-describedby="e-end"><p class="f-err" id="e-end" hidden></p></div>
+        <fieldset class="endereco" data-end-field>
+          <legend>Endereço de entrega <span>Votuporanga</span></legend>
+          <div class="end-grid">
+            <div class="field end-rua"><label for="o-rua">Rua ou avenida</label><input id="o-rua" name="rua" type="text" autocomplete="address-line1" maxlength="120" placeholder="Ex.: Rua Amazonas" aria-describedby="e-rua"><p class="f-err" id="e-rua" hidden></p></div>
+            <div class="field end-num"><label for="o-num">Número</label><input id="o-num" name="numero" type="text" inputmode="numeric" maxlength="12" placeholder="123" aria-describedby="e-num"><p class="f-err" id="e-num" hidden></p></div>
+            <div class="field end-bairro"><label for="o-bairro">Bairro</label><input id="o-bairro" name="bairro" type="text" autocomplete="address-level3" maxlength="60" placeholder="Ex.: Centro" aria-describedby="e-bairro"><p class="f-err" id="e-bairro" hidden></p></div>
+            <div class="field end-comp"><label for="o-comp">Complemento <span>opcional</span></label><input id="o-comp" name="complemento" type="text" maxlength="80" placeholder="Casa, apto, referência"></div>
+          </div>
+          <p class="end-status" data-end-status role="status" hidden><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg><span></span></p>
+          <p class="end-nota">A Coxitas entrega até <b data-raio>12</b> km da loja. A rua é conferida no mapa (<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>).</p>
+        </fieldset>
         <fieldset class="pay" aria-describedby="e-pag">
           <legend>Forma de pagamento <span>na entrega ou na retirada</span></legend>
           <div class="chips" data-pay-opts>
@@ -683,7 +702,7 @@
 
 <p class="sr" id="live" aria-live="polite"></p>
 
-<script src="assets/site.js?v=10" defer></script>
+<script src="assets/site.js?v=11" defer></script>
 <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

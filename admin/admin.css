@@ -93,6 +93,7 @@ code{padding:1px 6px;border-radius:6px;background:rgba(255,241,222,.08);font-siz
 .switch small{color:var(--text-3);font-size:13.5px}
 .ok-msg{color:var(--s-concluido);font-weight:700}
 .cfg .btn{justify-self:start}
+.cfg .dica{display:block;margin-top:6px;font-size:13px;line-height:1.45}
 .danger{display:grid;gap:10px;max-width:620px;margin-top:16px;padding:22px}
 .danger h3{font:700 16px/1.2 var(--f-text)}
 .danger .btn{justify-self:start}

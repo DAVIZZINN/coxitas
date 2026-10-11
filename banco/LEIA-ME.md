@@ -66,6 +66,23 @@ O botão "Entrar com a conta da Vercel" só aparece quando as duas chaves abaixo
 
 Projeto **coxitas** > aba **Analytics** > **Enable** (Web Analytics). O site já tem o código.
 
+## Área de entrega
+
+* O cliente escreve rua, número, bairro e complemento. Assim que termina a rua, o site confere no mapa
+  (OpenStreetMap, pelo servidor) se ela existe em Votuporanga e a quantos km fica da loja.
+* Rua que não existe não passa. Rua fora do raio também não: o site sugere retirar na loja ou falar pelo WhatsApp.
+  O servidor confere de novo na hora de gravar o pedido (não dá para burlar pelo navegador).
+* O raio fica no painel, aba **Loja** > **Raio de entrega** (começa em 12 km em linha reta; Votuporanga inteira cabe,
+  Valentim Gentil fica a uns 14,5 km). O pedido mostra no painel a distância aproximada.
+* O mapa de Votuporanga quase não tem número de casa: a conferência é da rua. O número e o bairro vão para o entregador.
+* Se o mapa estiver fora do ar, o site avisa e oferece mandar o pedido pelo WhatsApp.
+
+## Pedido em andamento
+
+Depois de pedir, se a pessoa fechar a página, quando abrir o site de novo aparece um cartão no topo com o número do
+pedido, a etapa (recebido, confirmado, em preparo, saiu para entrega) e o botão para acompanhar. Ele some quando o
+pedido é cancelado, ou 40 minutos depois de entregue. O X esconde até a próxima mudança de etapa.
+
 ## Como o painel se atualiza
 
 O painel confere os pedidos a cada 10 segundos (pedido novo aparece com aviso e som, se o som estiver ligado).

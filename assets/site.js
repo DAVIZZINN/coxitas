@@ -20,6 +20,7 @@
   // R$ 1.234,56 (o mesmo que o Intl do navegador escreve, sem o custo de montar o formatador ao abrir a página)
   const fmt = c => { const [r, d] = (Math.abs(c) / 100).toFixed(2).split('.'); return (c < 0 ? '-' : '') + 'R$ ' + r.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d; };
   const fmtTxt = c => fmt(c).replace(/\s/g, ' ');
+  const kmTxt = k => String(k).replace('.', ',');
   const priceHTML = txt => `<small>R$</small> ${String(txt).replace(/^\s*R\$\s*/, '')}`;
   const toCents = s => Math.round(parseFloat(String(s).replace(/[^\d,]/g, '').replace(',', '.')) * 100) || 0;
   const waURL = text => `https://wa.me/${LOJA.whatsapp}?text=${encodeURIComponent(text)}`;
@@ -526,7 +527,12 @@
   }
 
   function lock(on) { root.classList.toggle('lock', on); }
-  function openDlg(d) { if (d.open) return; d.classList.remove('closing'); d.showModal(); lock(true); }
+  function openDlg(d) {
+    if (d.open) return;
+    d.classList.remove('closing'); d.showModal(); lock(true);
+    // rua já preenchida (pedido anterior): confere no mapa quando a pessoa abre o pedido
+    if (d === dlg && form.rua.value && !geo.estado) confereEnd();
+  }
   function closeDlg(d, after) {
     if (!d.open) return;
     const done = () => { d.classList.remove('closing'); d.close(); if (after) after(); };
@@ -596,7 +602,7 @@
     try {
       const c = await api('config');
       API = true;
-      if (c) { loja = { ...loja, ...c }; lojaEm = Date.now(); montaPagamentos(); renderResumo(); avisoLoja(); }
+      if (c) { loja = { ...loja, ...c }; lojaEm = Date.now(); montaPagamentos(); renderResumo(); avisoLoja(); $('[data-raio]', form).textContent = kmTxt(loja.raio_entrega_km || 12); }
     } catch (e) {
       // sem API (site aberto fora da Vercel) ou sem banco ligado: o pedido vai pelo WhatsApp
       if (e && (e.status === 404 || e.status === 405 || e.status === 503)) { API = false; avisoLoja(); }
@@ -650,7 +656,7 @@
     const ent = modalidade() === 'entrega';
     $('[data-end-field]', form).hidden = !ent;
     $('[data-pickup-note]', form).hidden = ent;
-    if (!ent) marca('endereco', null);
+    if (!ent) { ['rua', 'numero', 'bairro'].forEach(k => marca(k, null)); mostraEnd('', ''); } else if (form.rua.value.trim()) confereEnd();
     renderResumo();
   }
   function syncPagamento() {
@@ -666,7 +672,56 @@
   const telBonito = d => (d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d);
   form.telefone.addEventListener('blur', () => { const d = telNormal(form.telefone.value); if (telOk(d)) form.telefone.value = telBonito(d); });
 
-  const campos = { nome: [form.nome, $('#e-nome')], telefone: [form.telefone, $('#e-tel')], endereco: [form.endereco, $('#e-end')], pagamento: [$('.pay', form), $('#e-pag')], troco: [form.troco, $('#e-troco')] };
+  /* ---------- endereço: a rua existe em Votuporanga e fica dentro da área de entrega? ----------
+     Quem confere é o servidor (mapa do OpenStreetMap, com o raio configurado no painel); aqui só mostra o resultado
+     assim que a pessoa termina de escrever a rua. O pedido é conferido de novo no servidor na hora de gravar. */
+  const endStatus = $('[data-end-status]', form);
+  const limpa = v => String(v || '').replace(/\s+/g, ' ').trim();
+  const partesEnd = () => ({ rua: limpa(form.rua.value), numero: limpa(form.numero.value), bairro: limpa(form.bairro.value), complemento: limpa(form.complemento.value) });
+  const juntaEnd = e => `${e.rua}, ${e.numero} - ${e.bairro}${e.complemento ? ` (${e.complemento})` : ''}`;
+  const chaveRua = r => r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  let geo = { chave: '', estado: '' }, geoBusca = null;
+  function mostraEnd(estado, txt) {
+    endStatus.className = `end-status${estado ? ` is-${estado}` : ''}`;
+    $('span', endStatus).textContent = txt || '';
+    $('use', endStatus).setAttribute('href', estado === 'ok' ? '#i-check' : '#i-pin');
+    endStatus.hidden = !txt;
+  }
+  function textoEnd(g) {
+    if (g.estado === 'ok') return `${g.rua} fica a ${kmTxt(g.km)} km da loja: dentro da área de entrega.`;
+    if (g.estado === 'fora') return `Esse endereço fica a ${kmTxt(g.km)} km da loja e a Coxitas entrega até ${kmTxt(g.raio)} km. Escolha "Retirar na loja" ou fale pelo WhatsApp.`;
+    if (g.estado === 'nao') return 'Não achamos essa rua em Votuporanga. Confira o nome (ex.: Rua Amazonas, Avenida Brasil).';
+    return 'Não deu para conferir a rua no mapa agora. Tente de novo em instantes.';
+  }
+  async function confereEnd() {
+    const { rua } = partesEnd();
+    if (modalidade() !== 'entrega' || rua.length < 3) { geo = { chave: '', estado: '' }; mostraEnd('', ''); return geo; }
+    if (API === null) await carregarLoja(true);
+    if (!usaBanco()) { mostraEnd('', ''); return { estado: 'whatsapp' }; }   // pelo WhatsApp a própria loja confere
+    const ch = chaveRua(rua);
+    if (geo.chave === ch && ['ok', 'fora', 'nao'].includes(geo.estado)) return geo;
+    if (geoBusca && geo.chave === ch) return geoBusca;
+    geo = { chave: ch, estado: 'conferindo' };
+    mostraEnd('conferindo', 'Conferindo a rua no mapa…');
+    geoBusca = (async () => {
+      let g;
+      try {
+        const r = await api('endereco', { rua });
+        g = { chave: ch, estado: 'ok', km: r.km, raio: r.raio, rua: r.rua };
+      } catch (err) {
+        const c = err && err.code, [km, raio] = String((err && err.detalhe) || '').split('|');
+        g = { chave: ch, estado: c === 'fora_da_area' ? 'fora' : c === 'endereco_nao_encontrado' ? 'nao' : 'erro', km, raio };
+      }
+      if (geo.chave === ch) { geo = g; mostraEnd(g.estado === 'ok' ? 'ok' : g.estado === 'fora' ? 'fora' : 'erro', textoEnd(g)); }
+      geoBusca = null;
+      return g;
+    })();
+    return geoBusca;
+  }
+  form.rua.addEventListener('change', () => confereEnd());
+  form.rua.addEventListener('input', () => { if (geo.chave && geo.chave !== chaveRua(form.rua.value)) { geo = { chave: '', estado: '' }; mostraEnd('', ''); } });
+
+  const campos = { nome: [form.nome, $('#e-nome')], telefone: [form.telefone, $('#e-tel')], rua: [form.rua, $('#e-rua')], numero: [form.numero, $('#e-num')], bairro: [form.bairro, $('#e-bairro')], pagamento: [$('.pay', form), $('#e-pag')], troco: [form.troco, $('#e-troco')] };
   function marca(nome, msg) {
     const [el, err] = campos[nome];
     if (msg) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
@@ -678,8 +733,10 @@
     if (nome.length < 2) e.nome = 'Escreva o seu nome.';
     const tel = telNormal(form.telefone.value);
     if (!telOk(tel)) e.telefone = 'Confira o telefone com DDD, por exemplo (17) 99999-9999.';
-    const end = form.endereco.value.trim().replace(/\s+/g, ' ');
-    if (modalidade() === 'entrega' && end.length < 5) e.endereco = 'Escreva o endereço com rua, número e bairro.';
+    const end = partesEnd(), ent = modalidade() === 'entrega';
+    if (ent && end.rua.length < 3) e.rua = 'Escreva o nome da rua.';
+    if (ent && !end.numero) e.numero = 'Escreva o número (ou S/N).';
+    if (ent && end.bairro.length < 2) e.bairro = 'Escreva o bairro.';
     const pag = pagSel();
     if (!pag) e.pagamento = 'Escolha como vai pagar.';
     let troco = null;
@@ -695,7 +752,7 @@
       say(e[primeiro]);
       return null;
     }
-    return { nome, tel, end: modalidade() === 'entrega' ? end : '', pag, troco: /^dinheiro/i.test(pag) ? troco : null, obs: form.obs.value.trim() };
+    return { nome, tel, end: ent ? juntaEnd(end) : '', partes: ent ? end : null, pag, troco: /^dinheiro/i.test(pag) ? troco : null, obs: form.obs.value.trim() };
   }
   form.addEventListener('input', e => { const k = e.target.name; if (k && campos[k] && e.target.getAttribute('aria-invalid')) marca(k, null); });
   form.addEventListener('change', e => {
@@ -714,10 +771,15 @@
       if (!c) return;
       if (!form.nome.value && c.nome) form.nome.value = c.nome;
       if (!form.telefone.value && c.tel) form.telefone.value = telBonito(c.tel);
-      if (!form.endereco.value && c.end) form.endereco.value = c.end;
+      if (c.partes) ['rua', 'numero', 'bairro', 'complemento'].forEach(k => { if (!form[k].value && c.partes[k]) form[k].value = c.partes[k]; });
+      else if (c.end && !form.rua.value) {
+        // endereço guardado antes, numa linha só ("Rua das Flores, 120, Centro"): separa o que der
+        const m = /^(.*?),\s*(\d+\s*[a-z]?|s\/?n)\s*(?:[-,]\s*(.*))?$/i.exec(c.end);
+        if (m) { form.rua.value = m[1]; form.numero.value = m[2]; form.bairro.value = m[3] || ''; } else form.rua.value = c.end;
+      }
     } catch (e) {}
   }
-  function guardaCliente(v) { try { localStorage.setItem(CLI, JSON.stringify({ nome: v.nome, tel: v.tel, end: v.end || '' })); } catch (e) {} }
+  function guardaCliente(v) { try { localStorage.setItem(CLI, JSON.stringify({ nome: v.nome, tel: v.tel, end: v.end || '', partes: v.partes || null })); } catch (e) {} }
   function guardaPedido(r) {
     try {
       const l = JSON.parse(localStorage.getItem('cx-meus-pedidos') || '[]').filter(x => x && x.n !== r.numero);
@@ -761,7 +823,10 @@
     dados_invalidos: 'Confira os dados do pedido.',
     nome_invalido: 'Confira o seu nome.',
     telefone_invalido: 'Confira o telefone com DDD.',
-    endereco_invalido: 'Confira o endereço de entrega.',
+    endereco_invalido: 'Confira o endereço de entrega: rua, número e bairro.',
+    endereco_nao_encontrado: 'Não achamos essa rua em Votuporanga. Confira o nome da rua.',
+    fora_da_area: d => { const [k, r] = String(d || '').split('|'); return `Esse endereço fica a ${kmTxt(k)} km da loja e a Coxitas entrega até ${kmTxt(r)} km. Escolha "Retirar na loja" ou fale pelo WhatsApp.`; },
+    mapa_indisponivel: 'Não deu para conferir o endereço no mapa agora. Tente de novo em instantes ou mande pelo WhatsApp.',
     pagamento_invalido: 'Essa forma de pagamento não está disponível agora. Escolha outra.',
     troco_invalido: 'Confira o valor do troco.',
     sabor_invalido: 'Algum sabor escolhido não está disponível. Confira os sabores.',
@@ -807,14 +872,23 @@
     submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); modoEnvio();
     chaveEnvio = chaveEnvio || novaChave();
     try {
+      // entrega: a rua precisa existir no mapa e ficar dentro da área (o servidor confere de novo ao gravar)
+      if (o.mod === 'entrega') {
+        const g = await confereEnd();
+        if (g.estado === 'nao' || g.estado === 'fora' || g.estado === 'erro') {
+          if (g.estado !== 'erro') { form.rua.setAttribute('aria-invalid', 'true'); form.rua.focus(); }
+          mostraErro(g.estado === 'fora' ? { code: 'fora_da_area', detalhe: `${g.km}|${g.raio}` } : { code: g.estado === 'nao' ? 'endereco_nao_encontrado' : 'mapa_indisponivel' }, o);
+          return;
+        }
+      }
       const r = await api('pedido', { p: {
-        chave: chaveEnvio, nome: v.nome, telefone: v.tel, modalidade: o.mod, endereco: v.end || null, pagamento: v.pag,
+        chave: chaveEnvio, nome: v.nome, telefone: v.tel, modalidade: o.mod, endereco: v.end || null, endereco_partes: v.partes, pagamento: v.pag,
         troco_para_centavos: v.troco, observacao: v.obs, sabores: o.sabores, itens: cart.map(i => ({ id: i.id, qtd: i.qtd })), teste: TESTE,
       } });
       guardaPedido(r); guardaCliente(v);
       feito = { ...o, ...r };
       cart = []; chaveEnvio = null; save();
-      form.reset(); preenchido = false; syncModalidade(); syncPagamento();
+      form.reset(); preenchido = false; geo = { chave: '', estado: '' }; syncModalidade(); syncPagamento();
       mostraFeito(feito);
     } catch (err) {
       mostraErro(err, o);
@@ -863,7 +937,55 @@
     box.focus({ preventScroll: true });
     say(`Pedido número ${p.numero} recebido.`);
   }
-  dlg.addEventListener('close', () => { if (feito) { feito = null; render(); } });
+  dlg.addEventListener('close', () => { if (feito) { feito = null; render(); confereVivo(); } });
+
+  /* ---------- pedido em andamento: aviso no topo para voltar ao acompanhamento ----------
+     Enquanto o último pedido feito neste aparelho não foi entregue, um cartão fica no topo do site com o andamento;
+     um toque abre a página do pedido. Some quando o pedido é cancelado, ou 40 minutos depois de entregue. */
+  const vivo = $('[data-vivo]');
+  const ST_VIVO = { novo: 'Recebido pela Coxitas', confirmado: 'Pedido confirmado', em_preparo: 'Sendo preparado agora', saiu_entrega: 'Saiu para entrega', pronto_retirada: 'Pronto para retirar', concluido: 'Entregue. Bom apetite!' };
+  const PASSO_VIVO = { novo: 0, confirmado: 1, em_preparo: 2, saiu_entrega: 3, pronto_retirada: 3, concluido: 4 };
+  let tVivo = 0, vivoAgora = '';
+  const meusPedidos = () => { try { return JSON.parse(localStorage.getItem('cx-meus-pedidos') || '[]').filter(x => x && x.n && /^[0-9a-f]{32}$/.test(x.c || '')); } catch (e) { return []; } };
+  function escondeVivo(depois) {
+    clearTimeout(tVivo);
+    vivo.classList.remove('show'); vivo.hidden = true;
+    if (depois) tVivo = setTimeout(confereVivo, depois);
+  }
+  async function confereVivo() {
+    clearTimeout(tVivo);
+    const ult = meusPedidos()[0];
+    if (!ult || (ult.t && Date.now() - new Date(ult.t).getTime() > 18 * 3600e3)) return escondeVivo();
+    let p;
+    try { p = await api('acompanhar', { numero: String(ult.n), codigo: ult.c }); }
+    catch (e) { return e && (e.status === 404 || e.status === 405 || e.status === 503) ? escondeVivo() : escondeVivo(120000); }
+    if (!p || p.erro || p.status === 'cancelado') return escondeVivo();
+    const fim = p.status === 'concluido';
+    if (fim && Date.now() - new Date(p.atualizado_em || p.criado_em).getTime() > 40 * 60000) return escondeVivo();
+    vivoAgora = `${p.numero}|${p.status}`;
+    let fechado = ''; try { fechado = sessionStorage.getItem('cx-vivo-fechado') || ''; } catch (e) {}
+    if (fechado === vivoAgora) return escondeVivo(fim ? 0 : 60000);   // a pessoa escondeu: volta quando o status mudar
+    const st = fim && p.modalidade === 'retirada' ? 'Retirado. Bom apetite!' : ST_VIVO[p.status] || 'Acompanhe o seu pedido';
+    const link = $('[data-vivo-link]', vivo);
+    link.href = `pedido/?n=${encodeURIComponent(p.numero)}&c=${encodeURIComponent(ult.c)}`;
+    link.setAttribute('aria-label', `Pedido nº ${p.numero}: ${st}. Abrir o acompanhamento.`);
+    $('[data-vivo-num]', vivo).textContent = `Seu pedido nº ${p.numero}`;
+    $('[data-vivo-st]', vivo).textContent = st;
+    $('.vivo-ico use', vivo).setAttribute('href', fim ? '#i-check' : p.modalidade === 'retirada' ? '#i-bag' : '#i-moto');
+    const passo = PASSO_VIVO[p.status] || 0;
+    $$('.vivo-passos i', vivo).forEach((i, k) => { i.className = fim || k < passo ? 'ok' : k === passo ? 'atual' : ''; });
+    vivo.classList.toggle('fim', fim);
+    if (vivo.hidden) { vivo.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => vivo.classList.add('show'))); }
+    if (!fim) tVivo = setTimeout(confereVivo, document.hidden ? 120000 : 45000);
+  }
+  $('[data-vivo-x]', vivo).addEventListener('click', () => {
+    try { sessionStorage.setItem('cx-vivo-fechado', vivoAgora); } catch (e) {}
+    escondeVivo(/concluido$/.test(vivoAgora) ? 0 : 60000);
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && meusPedidos().length) confereVivo(); });
+  // depois que a página terminou de abrir (não atrapalha o carregamento)
+  const vivoDepois = () => idle(() => setTimeout(confereVivo, 800));
+  if (document.readyState === 'complete') vivoDepois(); else window.addEventListener('load', vivoDepois, { once: true });
 
   /* ---------- galeria: foto ampliada ---------- */
   const lb = $('#lightbox');
