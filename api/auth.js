@@ -85,7 +85,7 @@ export default {
           // só manda para quem é da equipe; para os outros a resposta é a mesma e nada sai (ninguém descobre quem é da equipe)
           if (await podeEntrar(email)) {
             const r = await neonAuth('/email-otp/send-verification-otp', { email, type: 'sign-in' });
-            if (!r.ok) { console.error('código não saiu', r.status, (r.d && (r.d.code || r.d.message)) || ''); return json(502, { erro: 'envio_falhou' }); }
+            if (!r.ok) { console.error('código não saiu', r.status, (r.d && (r.d.code || r.d.message)) || ''); return json(502, { erro: 'envio_falhou', detalhe: `neon_${r.status}` }); }
           }
           return json(200, { ok: true });
         }
@@ -96,9 +96,13 @@ export default {
         if (!(await podeEntrar(email))) return json(400, { erro: 'codigo_invalido' });
         const r = await neonAuth('/sign-in/email-otp', { email, otp: codigo });
         if (!r.ok) {
-          const c = String((r.d && r.d.code) || '');
-          if (r.status >= 500) { console.error('login do Neon falhou', r.status, c); return json(502, { erro: 'envio_falhou' }); }
-          return json(400, { erro: /TOO_MANY/.test(c) ? 'codigo_bloqueado' : /EXPIRED/.test(c) ? 'codigo_expirado' : 'codigo_invalido' });
+          const c = String((r.d && (r.d.code || r.d.message)) || '');
+          if (/TOO_MANY/i.test(c)) return json(400, { erro: 'codigo_bloqueado' });
+          if (/EXPIRED/i.test(c)) return json(400, { erro: 'codigo_expirado' });
+          if (r.status < 500 && /OTP|INVALID/i.test(c)) return json(400, { erro: 'codigo_invalido' });
+          // resposta inesperada do Neon: o código de status ajuda a achar o problema sem expor nada
+          console.error('login do Neon falhou', r.status, c);
+          return json(502, { erro: 'envio_falhou', detalhe: `neon_${r.status}` });
         }
         // o código só vale se o Neon confirmar este mesmo e-mail
         const confirmado = String((r.d && r.d.user && r.d.user.email) || '').toLowerCase();
