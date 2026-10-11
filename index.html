@@ -9,14 +9,16 @@
 <meta name="theme-color" content="#140A05">
 <!--
   ONDE EDITAR
-  · Preços e produtos: seção "cardápio" abaixo. Mudou um preço? Rode node supabase/gerar-cardapio.mjs e cole o
-    02-cardapio.sql no Supabase: o pedido gravado usa o preço do banco.
+  · Preços e produtos: seção "cardápio" abaixo. Mudou um preço, item ou sabor? Rode node banco/gerar.mjs e
+    publique: a API atualiza o banco sozinha (o pedido gravado usa o preço do banco).
   · WhatsApp, iFood, Instagram, horários e mapa: objeto LOJA no começo de assets/site.js.
-  · Banco de pedidos e painel (/admin): assets/config.js e o passo a passo em supabase/LEIA-ME.md.
-  · Endereço do site: https://davizzinn.github.io/coxitas/. Para trocar (domínio próprio), rode
+  · Pedidos e painel (/admin): funções em api/ (Vercel) e o passo a passo em banco/LEIA-ME.md.
+  · Mexeu no script escrito aqui no começo (ou no da 404.html)? Rode node ferramentas/cabecalhos.mjs: a política
+    de segurança do vercel.json só deixa rodar os scripts que ela conhece.
+  · Endereço do site: https://coxitas.vercel.app/. Para trocar (domínio próprio), rode
     node ferramentas/trocar-endereco.mjs https://www.seudominio.com.br/
 -->
-<link rel="canonical" href="https://davizzinn.github.io/coxitas/">
+<link rel="canonical" href="https://coxitas.vercel.app/">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/img/icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -25,30 +27,30 @@
 <meta property="og:site_name" content="Coxitas Salgados">
 <meta property="og:title" content="Coxitas Salgados · Para todo momento virar festa">
 <meta property="og:description" content="Salgados de festa, combos e mini churros com entrega em Votuporanga. Peça pelo site ou pelo WhatsApp.">
-<meta property="og:url" content="https://davizzinn.github.io/coxitas/">
-<meta property="og:image" content="https://davizzinn.github.io/coxitas/assets/img/og-coxitas.jpg">
+<meta property="og:url" content="https://coxitas.vercel.app/">
+<meta property="og:image" content="https://coxitas.vercel.app/assets/img/og-coxitas.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Bandeja de coxinhas da Coxitas e a frase Para todo momento virar festa.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Coxitas Salgados · Para todo momento virar festa">
-<meta name="twitter:image" content="https://davizzinn.github.io/coxitas/assets/img/og-coxitas.jpg">
+<meta name="twitter:image" content="https://coxitas.vercel.app/assets/img/og-coxitas.jpg">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "FoodEstablishment",
-  "@id": "https://davizzinn.github.io/coxitas/#loja",
+  "@id": "https://coxitas.vercel.app/#loja",
   "name": "Coxitas Salgados",
   "alternateName": "Coxitas Salgados de Festa",
   "slogan": "Para todo momento virar festa",
   "description": "Salgados de festa, combos e mini churros com entrega em Votuporanga, SP.",
-  "url": "https://davizzinn.github.io/coxitas/",
-  "image": "https://davizzinn.github.io/coxitas/assets/img/og-coxitas.jpg",
-  "logo": "https://davizzinn.github.io/coxitas/assets/img/icon-512.png",
+  "url": "https://coxitas.vercel.app/",
+  "image": "https://coxitas.vercel.app/assets/img/og-coxitas.jpg",
+  "logo": "https://coxitas.vercel.app/assets/img/icon-512.png",
   "telephone": "+55 17 99643-3594",
   "servesCuisine": "Salgados",
   "priceRange": "R$ 10 a R$ 113",
-  "hasMenu": "https://davizzinn.github.io/coxitas/#cardapio",
+  "hasMenu": "https://coxitas.vercel.app/#cardapio",
   "address": {
     "@type": "PostalAddress",
     "streetAddress": "R. Francisco Pelegrini, 5819, Parque Santa Felicia",
@@ -68,8 +70,10 @@
 <link rel="preload" href="assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" href="assets/img/poster-coxinha-480.webp" imagesrcset="assets/img/poster-coxinha-480.webp 480w, assets/img/poster-coxinha-720.webp 720w" imagesizes="(max-width: 639px) 46vw, 340px" fetchpriority="high">
-<link rel="stylesheet" href="assets/site.css?v=9">
+<link rel="stylesheet" href="assets/site.css?v=10">
 <script>
+  // o endereço oficial é o da Vercel: quem abrir o link antigo do GitHub Pages vai direto para lá
+  if (/\.github\.io$/.test(location.hostname)) location.replace('https://coxitas.vercel.app/' + location.pathname.replace(/^\/coxitas\/?/, '') + location.search + location.hash);
   // animações ligadas para todo mundo, no computador e no celular; quem preferir desliga no rodapé
   (function (d) { var m = null; try { m = localStorage.getItem('cx-anim'); } catch (e) {}
     d.classList.add('js'); if (m === 'off') d.classList.add('rm'); })(document.documentElement);
@@ -679,7 +683,7 @@
 
 <p class="sr" id="live" aria-live="polite"></p>
 
-<script src="assets/config.js?v=1" defer></script>
-<script src="assets/site.js?v=9" defer></script>
+<script src="assets/site.js?v=10" defer></script>
+<script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

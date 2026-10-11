@@ -558,23 +558,25 @@
   });
 
   /* ---------- envio do pedido ----------
-     Com o banco configurado (assets/config.js), o pedido é gravado e ganha número na hora; o preço que vale é
-     o do banco. Sem banco, ou se ele falhar, o pedido vai pronto para o WhatsApp da loja, como antes. */
-  const CX = window.COXITAS || {};
-  const API = CX.supabaseUrl && CX.supabaseChave ? { url: String(CX.supabaseUrl).replace(/\/+$/, ''), chave: CX.supabaseChave } : null;
+     O pedido vai para a API do próprio site (funções da Vercel em /api, com o banco Postgres): é gravado e ganha
+     número na hora, e o preço que vale é o do banco. Se a API ou o banco não estiverem ligados, ou se falharem,
+     o pedido vai pronto para o WhatsApp da loja, como antes. */
   // pedido feito no computador de quem cuida do site (ou com ?teste=1 no endereço) fica marcado como teste no painel
   const TESTE = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || /[?&]teste=1(&|$)/.test(location.search);
-  async function api(fn, args) {
+  let API = null;   // null = ainda não sabe; true = API e banco respondendo; false = pedido vai pelo WhatsApp
+  async function api(acao, corpo) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 15000);
     let r;
     try {
-      r = await fetch(`${API.url}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: API.chave, Authorization: `Bearer ${API.chave}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args || {}), signal: ctl.signal });
+      r = await fetch(`api/publico/${acao}`, corpo
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: ctl.signal }
+        : { signal: ctl.signal });
     } catch (e) {
       throw { rede: true };
     } finally { clearTimeout(timer); }
     const body = await r.json().catch(() => null);
-    if (!r.ok) throw { code: body && body.message, detalhe: body && body.details, status: r.status };
+    if (!r.ok) throw { code: body && body.erro, detalhe: body && body.detalhe, status: r.status };
     return body;
   }
 
@@ -586,15 +588,20 @@
   let lojaEm = 0, feito = null, enviando = false;
   const modalidade = () => { const r = $('input[name=modalidade]:checked', form); return r ? r.value : 'entrega'; };
   const pagSel = () => { const r = $('input[name=pagamento]:checked', form); return r ? r.value : ''; };
-  const usaBanco = () => !!API && loja.aceitando_pedidos !== false;
+  const usaBanco = () => API === true && loja.aceitando_pedidos !== false;
   const taxaAtual = () => (modalidade() === 'retirada' ? 0 : loja.taxa_entrega_centavos);   // null = a combinar
 
-  async function carregarLoja() {
-    if (!API || Date.now() - lojaEm < 120000) return;
+  async function carregarLoja(forca) {
+    if (!forca && (API === false || (API === true && Date.now() - lojaEm < 120000))) return;
     try {
-      const c = await api('config_publica');
+      const c = await api('config');
+      API = true;
       if (c) { loja = { ...loja, ...c }; lojaEm = Date.now(); montaPagamentos(); renderResumo(); avisoLoja(); }
-    } catch (e) { /* sem resposta: segue com o padrão; o envio avisa se der erro */ }
+    } catch (e) {
+      // sem API (site aberto fora da Vercel) ou sem banco ligado: o pedido vai pelo WhatsApp
+      if (e && (e.status === 404 || e.status === 405 || e.status === 503)) { API = false; avisoLoja(); }
+      // internet caiu: tenta de novo na próxima vez que abrir o pedido
+    }
   }
   function montaPagamentos() {
     const box = $('[data-pay-opts]', form);
@@ -750,6 +757,8 @@
 
   const ERROS = {
     loja_pausada: d => `Os pedidos pelo site estão pausados agora${d ? `: ${d}` : ''}. Mande pelo WhatsApp.`,
+    sem_banco: 'Os pedidos pelo site estão fora do ar agora. Mande pelo WhatsApp.',
+    dados_invalidos: 'Confira os dados do pedido.',
     nome_invalido: 'Confira o seu nome.',
     telefone_invalido: 'Confira o telefone com DDD.',
     endereco_invalido: 'Confira o endereço de entrega.',
@@ -771,7 +780,7 @@
     waFallback.href = waURL(pedidoTexto(o));
     waFallback.hidden = false;
     say(formErr.textContent);
-    if (err && (err.code === 'pagamento_invalido' || err.code === 'loja_pausada')) { lojaEm = 0; carregarLoja(); }
+    if (err && (err.code === 'pagamento_invalido' || err.code === 'loja_pausada')) carregarLoja(true);
   }
   function limpaErro() { formErr.hidden = true; waFallback.hidden = true; }
   waFallback.addEventListener('click', () => { sent.hidden = false; $('[data-sent-link]', dlg).href = waFallback.href; });
@@ -792,12 +801,13 @@
     const v = valida();
     if (!v) return;
     const o = retrato(v);
+    if (API === null) await carregarLoja(true);
     if (!usaBanco()) { enviaWhats(o); guardaCliente(v); return; }
     enviando = true;
     submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); modoEnvio();
     chaveEnvio = chaveEnvio || novaChave();
     try {
-      const r = await api('criar_pedido', { p: {
+      const r = await api('pedido', { p: {
         chave: chaveEnvio, nome: v.nome, telefone: v.tel, modalidade: o.mod, endereco: v.end || null, pagamento: v.pag,
         troco_para_centavos: v.troco, observacao: v.obs, sabores: o.sabores, itens: cart.map(i => ({ id: i.id, qtd: i.qtd })), teste: TESTE,
       } });

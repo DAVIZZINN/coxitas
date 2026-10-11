@@ -1,0 +1,15 @@
+{
+  "name": "coxitas",
+  "private": true,
+  "description": "Site da Coxitas Salgados com pedidos e painel da loja (Vercel Functions + Postgres)",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "gerar": "node banco/gerar.mjs"
+  },
+  "dependencies": {
+    "@vercel/functions": "3.9.9",
+    "jose": "6.2.12",
+    "pg": "8.23.0"
+  }
+}

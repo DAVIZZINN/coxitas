@@ -3,7 +3,7 @@
 //
 // Uso:  node ferramentas/trocar-endereco.mjs https://www.coxitas.com.br/
 //       node ferramentas/trocar-endereco.mjs https://coxitas.github.io/
-// Depois: commit + push, e (domínio próprio) configurar o DNS e o "Custom domain" no GitHub (ver supabase/LEIA-ME.md).
+// Depois: commit + push. Domínio próprio: Vercel > projeto > Settings > Domains (ver banco/LEIA-ME.md).
 import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +30,8 @@ for (const f of ['index.html', 'sitemap.xml', 'robots.txt', '404.html', 'pedido/
 }
 const host = new URL(novo).hostname;
 const cname = join(raiz, 'CNAME');
-if (/\.github\.io$/i.test(host)) { if (existsSync(cname)) rmSync(cname); }
-else { writeFileSync(cname, host + '\n'); console.log('CNAME:', host); }
+// CNAME é coisa do GitHub Pages: endereço *.vercel.app ou *.github.io não leva. Domínio próprio na Vercel se liga
+// em Settings > Domains do projeto (o CNAME só serve se o GitHub Pages continuar publicando)
+if (/\.(github\.io|vercel\.app)$/i.test(host)) { if (existsSync(cname)) rmSync(cname); }
+else { writeFileSync(cname, host + '\n'); console.log('CNAME (só para o GitHub Pages):', host); }
 console.log(`${n} arquivos com o endereço ${novo} (antes: ${atual}).`);

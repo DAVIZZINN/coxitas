@@ -1,7 +1,5 @@
--- Gerado por supabase/gerar-cardapio.mjs a partir do index.html em 2026-10-10. Não edite à mão:
--- mude o preço no site e rode o gerador de novo.
+-- Gerado por banco/gerar.mjs a partir do index.html. Não edite à mão: mude o site e rode o gerador de novo.
 -- 15 produtos e 7 sabores.
-
 insert into public.produtos (id, nome, detalhe, preco_centavos, pede_sabores, ativo, ordem) values
   ('combo-individual', 'Combo Fome Individual', '20 salgados à escolha + 1 Guaraná Antártica 350ml', 2290, true, true, 0),
   ('combo-dupla', 'Combo Dupla Fome', '40 salgados à escolha + 2 Guaraná Antártica 350ml', 4490, true, true, 1),
@@ -20,8 +18,6 @@ insert into public.produtos (id, nome, detalhe, preco_centavos, pede_sabores, at
   ('churros-100', 'Mini Churros 20g', '100 unidades', 8990, false, true, 14)
 on conflict (id) do update set nome = excluded.nome, detalhe = excluded.detalhe, preco_centavos = excluded.preco_centavos,
   pede_sabores = excluded.pede_sabores, ativo = true, ordem = excluded.ordem;
-
--- o que saiu do site fica inativo (não aparece e não pode ser pedido), mas continua nos pedidos antigos
+-- o que saiu do site fica inativo (não pode ser pedido), mas continua nos pedidos antigos
 update public.produtos set ativo = false where id not in ('combo-individual', 'combo-dupla', 'combo-familia', 'combo-galera', 'salgados-30', 'salgados-50', 'salgados-80', 'salgados-100', 'churros-10', 'churros-20', 'churros-30', 'churros-40', 'churros-50', 'churros-80', 'churros-100');
-
 update public.loja_config set sabores = array['Coxinha', 'Bolinho de queijo', 'Bolinho de carne', 'Risole', 'Quibe', 'Bolinho de calabresa', 'Enroladinho de salsicha'] where id = 1;

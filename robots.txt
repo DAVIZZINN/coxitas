@@ -2,7 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /pedido/
-Disallow: /supabase/
+Disallow: /api/
 Disallow: /ferramentas/
 
-Sitemap: https://davizzinn.github.io/coxitas/sitemap.xml
+Sitemap: https://coxitas.vercel.app/sitemap.xml

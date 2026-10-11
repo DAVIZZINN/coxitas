@@ -1,26 +1,23 @@
 /* Coxitas · painel da loja.
-   Login pelo Supabase Auth; todos os dados passam pelas funções do banco, que conferem se a pessoa logada é da equipe
-   (supabase/01-estrutura.sql). Esconder esta página não é a proteção: sem login e sem cadastro na equipe o banco não
-   entrega nada. Pedidos novos chegam em tempo real; se o tempo real cair, o painel confere sozinho a cada 20 segundos. */
+   Login com a conta da Vercel (api/auth.js). Todos os dados passam pela API do próprio site (api/admin.js), que confere
+   a sessão e se o e-mail continua ativo na equipe: esconder esta página não é a proteção, sem sessão a API não entrega
+   nada. Pedidos novos: o painel confere a cada 10 segundos (mais devagar com a aba escondida, com a loja fechada ou
+   sem ninguém mexendo há horas, para o banco do plano grátis poder descansar). */
 (() => {
   'use strict';
   // não deixa o painel ser aberto dentro de outro site (clique enganado)
   if (window.top !== window.self) { document.documentElement.textContent = ''; return; }
+  // o endereço oficial é o da Vercel (o link antigo do GitHub Pages leva para lá)
+  if (/\.github\.io$/.test(location.hostname)) { location.replace('https://coxitas.vercel.app/admin/' + location.hash); return; }
 
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const CIDADE = 'Votuporanga - SP';
-  const CX = window.COXITAS || {};
   const views = $$('[data-v]');
   const mostraTela = v => views.forEach(el => { el.hidden = el.dataset.v !== v; });
 
-  if (!CX.supabaseUrl || !CX.supabaseChave || !window.supabase) { mostraTela('config'); return; }
-  const sb = window.supabase.createClient(CX.supabaseUrl, CX.supabaseChave, {
-    auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cx-painel-sessao' },
-  });
-
   /* ---------- formatos ---------- */
-  const fmt = c => { const [r, d] = (Math.abs(+c || 0) / 100).toFixed(2).split('.'); return 'R$ ' + r.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d; };
+  const fmt = c => { const [r, d] = (Math.abs(+c || 0) / 100).toFixed(2).split('.'); return 'R$ ' + r.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d; };
   const TZ = 'America/Sao_Paulo';
   const fHora = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
   const fDia = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit' });
@@ -33,24 +30,43 @@
   const ico = id => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'ico'); s.setAttribute('aria-hidden', 'true'); const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', `#${id}`); s.appendChild(u); return s; };
   const badgeStatus = s => { const b = el('span', `st st-${s}`, NOME[s] || s); return b; };
 
-  /* ---------- erros ---------- */
+  /* ---------- conversa com a API ---------- */
   const ERRO = {
-    sem_acesso: 'Sua conta não tem acesso ao painel.',
     so_dono: 'Só o dono da loja pode fazer isso.',
     status_mudou: 'Outra pessoa mudou este pedido antes. A tela foi atualizada.',
     mudanca_invalida: 'Essa mudança de status não vale para este pedido agora.',
     nao_encontrado: 'Pedido não encontrado.',
     nota_longa: 'O motivo ficou longo demais (até 300 letras).',
     pagamentos_invalidos: 'Confira as formas de pagamento (de 1 a 10, uma por linha).',
+    dados_invalidos: 'Algum dado não foi aceito. Confira e tente de novo.',
+    email_invalido: 'Confira o e-mail.',
+    nome_invalido: 'O nome precisa ter de 2 a 60 letras.',
+    nao_pode_se_rebaixar: 'Você não pode tirar o seu próprio acesso de dono.',
+    nao_pode_se_remover: 'Você não pode se remover da equipe.',
+    sem_login: 'Sua sessão terminou. Entre de novo.',
+    origem: 'Bloqueado por segurança. Recarregue a página e tente de novo.',
+    sem_banco: 'O banco de pedidos não está ligado.',
+    interno: 'O servidor teve um problema. Tente de novo em instantes.',
   };
-  const textoErro = e => (e && ERRO[e.message]) || (e && /fetch|network|Failed/i.test(e.message || '') ? 'Sem conexão com o banco. Confira a internet.' : 'Não deu certo agora. Tente de novo.');
-  async function rpc(fn, args) {
-    const { data, error } = await sb.rpc(fn, args || {});
-    if (error) {
-      if (error.message === 'sem_acesso') mostraTela('negado');
-      throw error;
+  const textoErro = e => (e && ERRO[e.message]) || (e && e.rede ? 'Sem conexão com o servidor. Confira a internet.' : 'Não deu certo agora. Tente de novo.');
+  // GET para ler; POST com JSON para mudar (a API só aceita mudança vinda deste mesmo site)
+  async function api(acao, params, corpo) {
+    const qs = new URLSearchParams();
+    Object.entries(params || {}).forEach(([k, v]) => { if (v != null && v !== '' && v !== false) qs.set(k, String(v)); });
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 20000);
+    let r;
+    try {
+      const s = qs.toString();
+      r = await fetch(`../api/admin/${acao}${s ? `?${s}` : ''}`, corpo === undefined
+        ? { cache: 'no-store', signal: ctl.signal }
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: ctl.signal });
+    } catch (e) { throw Object.assign(new Error('rede'), { rede: true }); } finally { clearTimeout(t); }
+    const b = await r.json().catch(() => null);
+    if (!r.ok) {
+      if (r.status === 401) sessaoAcabou();
+      throw Object.assign(new Error((b && b.erro) || 'falhou'), { status: r.status });
     }
-    return data;
+    return b;
   }
 
   /* ---------- avisos na tela e som ---------- */
@@ -94,25 +110,26 @@
   document.addEventListener('pointerdown', () => { if (som && audio && audio.state === 'suspended') audio.resume(); }, { passive: true });
   syncSom();
 
+
   /* ---------- estado ---------- */
   let eu = null;
   const f = { periodo: 'hoje', de: null, ate: null, testes: false, status: '', busca: '' };
   let pular = 0, totalLista = 0, aberto = null, abertoDe = null;
   const avisados = new Set();
-  let conhecidos = null;           // números já vistos (para avisar pedido novo quando o tempo real não estiver ligado)
+  let conhecidos = null;           // números já vistos (para avisar pedido novo)
 
   // dias contados pelo relógio de Votuporanga
   const inicioDia = desloc => { const sp = new Date(Date.now() - 3 * 3600e3); return new Date(Date.UTC(sp.getUTCFullYear(), sp.getUTCMonth(), sp.getUTCDate() - desloc) + 3 * 3600e3).toISOString(); };
   function intervalo() {
-    if (f.periodo === 'hoje') return { p_de: inicioDia(0), p_ate: null };
-    if (f.periodo === '7') return { p_de: inicioDia(6), p_ate: null };
-    if (f.periodo === '30') return { p_de: inicioDia(29), p_ate: null };
+    if (f.periodo === 'hoje') return { de: inicioDia(0) };
+    if (f.periodo === '7') return { de: inicioDia(6) };
+    if (f.periodo === '30') return { de: inicioDia(29) };
     if (f.periodo === 'datas') {
       const d = v => (v ? new Date(`${v}T00:00:00-03:00`) : null);
       const de = d(f.de), ate = d(f.ate);
-      return { p_de: de ? de.toISOString() : null, p_ate: ate ? new Date(ate.getTime() + 86400000).toISOString() : null };
+      return { de: de ? de.toISOString() : null, ate: ate ? new Date(ate.getTime() + 86400000).toISOString() : null };
     }
-    return { p_de: null, p_ate: null };
+    return {};
   }
 
   /* ---------- abas ---------- */
@@ -125,29 +142,31 @@
     $('[data-titulo]').textContent = TITULO[aba];
     $('[data-filtros]').hidden = aba === 'loja';
     $('[data-filtros]').classList.toggle('so-testes', aba === 'quadro');
-    if (aba === 'loja') carregaConfig(); else atualiza();
+    if (aba === 'loja') { carregaConfig(); carregaEquipe(); }
+    atualiza({ forca: true });
   }
-  window.addEventListener('hashchange', () => vaiPara(location.hash.slice(1)));
+  window.addEventListener('hashchange', () => { if (eu) vaiPara(location.hash.slice(1)); });
 
   /* ---------- filtros ---------- */
   $$('[data-p]').forEach(b => b.addEventListener('click', () => {
     f.periodo = b.dataset.p;
     $$('[data-p]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     $('[data-datas]').hidden = f.periodo !== 'datas';
-    if (f.periodo !== 'datas') atualiza({ reinicia: true });
+    if (f.periodo !== 'datas') atualiza({ forca: true });
   }));
-  $('[data-de]').addEventListener('change', e => { f.de = e.target.value || null; atualiza({ reinicia: true }); });
-  $('[data-ate]').addEventListener('change', e => { f.ate = e.target.value || null; atualiza({ reinicia: true }); });
-  $('[data-testes]').addEventListener('change', e => { f.testes = e.target.checked; conhecidos = null; atualiza({ reinicia: true }); });
+  $('[data-de]').addEventListener('change', e => { f.de = e.target.value || null; atualiza({ forca: true }); });
+  $('[data-ate]').addEventListener('change', e => { f.ate = e.target.value || null; atualiza({ forca: true }); });
+  $('[data-testes]').addEventListener('change', e => { f.testes = e.target.checked; conhecidos = null; atualiza({ forca: true }); });
   const statusBtns = $$('[data-s]');
   function marcaStatus(s) { f.status = s; statusBtns.forEach(x => x.setAttribute('aria-pressed', String(x.dataset.s === s))); }
-  statusBtns.forEach(b => b.addEventListener('click', () => { marcaStatus(b.dataset.s); carregaLista(true); }));
+  const erroLista = e => toast('Não deu para carregar a lista', textoErro(e), { erro: true, tempo: 5000 });
+  statusBtns.forEach(b => b.addEventListener('click', () => { marcaStatus(b.dataset.s); carregaLista(true).catch(erroLista); }));
   let tBusca = 0;
-  $('[data-busca]').addEventListener('input', e => { clearTimeout(tBusca); tBusca = setTimeout(() => { f.busca = e.target.value.trim(); carregaLista(true); }, 300); });
+  $('[data-busca]').addEventListener('input', e => { clearTimeout(tBusca); tBusca = setTimeout(() => { f.busca = e.target.value.trim(); carregaLista(true).catch(erroLista); }, 300); });
   $$('[data-k]').forEach(k => { if (k.tagName === 'BUTTON') k.addEventListener('click', () => { marcaStatus(k.dataset.filtro || ''); location.hash = 'pedidos'; }); });
   $$('[data-tab-link]').forEach(a => a.addEventListener('click', () => marcaStatus('')));
-  $('[data-recarregar]').addEventListener('click', () => atualiza({ reinicia: true }));
-  $('[data-mais]').addEventListener('click', () => carregaLista(false));
+  $('[data-recarregar]').addEventListener('click', () => { if (aba === 'loja') { carregaConfig(); carregaEquipe(); } atualiza({ forca: true }); });
+  $('[data-mais]').addEventListener('click', () => carregaLista(false).catch(erroLista));
 
   /* ---------- linha de pedido ---------- */
   function resumoItens(p) { return p.itens.map(i => `${i.quantidade}x ${i.nome}${/unidades/.test(i.detalhe) ? ` (${i.detalhe.replace(' unidades', ' un')})` : ''}`).join(', '); }
@@ -171,23 +190,23 @@
 
   /* ---------- carregar ---------- */
   async function carregaResumo() {
-    const r = await rpc('admin_resumo', { ...intervalo(), p_teste: f.testes });
+    const iv = intervalo();
+    const r = await api('resumo', { ...iv, teste: f.testes });
     $$('[data-k]').forEach(k => {
       const v = r[k.dataset.k];
       const alvo = k.tagName === 'BUTTON' ? $('b', k) : k;
       alvo.textContent = /centavos/.test(k.dataset.k) ? fmt(v) : String(v ?? 0);
       if (k.dataset.k === 'novos') k.classList.toggle('tem', v > 0);
     });
-    const recentes = await rpc('admin_pedidos', { ...intervalo(), p_teste: f.testes, p_limite: 8 });
+    const recentes = await api('pedidos', { ...iv, teste: f.testes, limite: 8 });
     const ul = $('[data-recentes]');
     ul.innerHTML = '';
-    if (!recentes.pedidos.length) vazio(ul, f.periodo === 'hoje' ? 'Nenhum pedido hoje ainda' : 'Nenhum pedido no período', 'Quando um cliente pedir pelo site, ele aparece aqui na hora.');
+    if (!recentes.pedidos.length) vazio(ul, f.periodo === 'hoje' ? 'Nenhum pedido hoje ainda' : 'Nenhum pedido no período', 'Quando um cliente pedir pelo site, ele aparece aqui em poucos segundos.');
     recentes.pedidos.forEach(p => ul.appendChild(linhaPedido(p)));
   }
   async function carregaLista(reinicia) {
     if (reinicia) pular = 0;
-    const st = f.status ? f.status.split(',') : null;
-    const r = await rpc('admin_pedidos', { ...intervalo(), p_status: st, p_busca: f.busca || null, p_teste: f.testes, p_limite: 30, p_pular: pular });
+    const r = await api('pedidos', { ...intervalo(), status: f.status, busca: f.busca, teste: f.testes, limite: 30, pular });
     const ul = $('[data-lista]');
     if (reinicia) ul.innerHTML = '';
     totalLista = r.total;
@@ -197,40 +216,51 @@
     $('[data-contagem]').textContent = totalLista ? `${totalLista} ${totalLista === 1 ? 'pedido' : 'pedidos'}${pular < totalLista ? ` (mostrando ${pular})` : ''}` : '';
     $('[data-mais]').hidden = pular >= totalLista;
   }
-  // pedidos novos (fora do período escolhido também): número no menu e no título da aba
-  async function carregaNovos() {
-    const r = await rpc('admin_pedidos', { p_status: ['novo'], p_teste: f.testes, p_limite: 20 });
-    const n = r.total;
+
+  // uma chamada só traz o que muda o tempo todo: pedidos em andamento (para o quadro, o número no menu e o aviso de
+  // pedido novo), os finalizados de hoje e se a loja está aberta. Se nada mudou desde a última vez, a API responde
+  // só "igual" e o painel não redesenha nada.
+  let marca = null, marcaChave = '', lojaAberta = true, ativosAgora = 0;
+  async function carregaPainel(forca) {
+    const de = inicioDia(0), chave = `${de}|${f.testes}`;
+    const r = await api('painel', { de, teste: f.testes, marca: !forca && chave === marcaChave ? marca : null });
+    lojaAberta = r.aceitando !== false;
+    if (r.igual) return false;
+    marca = r.marca; marcaChave = chave;
+    ativosAgora = r.ativos.length;
+    const novos = r.ativos.filter(p => p.status === 'novo');
+    const n = novos.length;
     if (n !== novosAgora) { novosAgora = n; alarme(); }
     const b = $('[data-badge-novos]');
     b.textContent = String(n); b.hidden = !n;
     document.title = `${n ? `(${n}) ` : ''}Painel · Coxitas`;
-    // sem tempo real, é aqui que o pedido novo é percebido
-    const nums = new Set(r.pedidos.map(p => p.numero));
-    if (conhecidos) r.pedidos.forEach(p => { if (!conhecidos.has(p.numero)) avisaNovo(p); });
+    const nums = new Set(novos.map(p => p.numero));
+    if (conhecidos) novos.forEach(p => { if (!conhecidos.has(p.numero)) avisaNovo(p); });
     conhecidos = conhecidos ? new Set([...conhecidos, ...nums]) : nums;
+    if (aba === 'quadro') desenhaQuadro(r.ativos, r.fim);
+    return true;
   }
-  let ocupado = false, deNovo = false;
+  let ocupado = false, deNovo = null;
   async function atualiza(o = {}) {
     if (!eu) return;
-    if (ocupado) { deNovo = true; return; }
+    if (ocupado) { deNovo = { silencioso: true, forca: !!(o.forca || (deNovo && deNovo.forca)) }; return; }
     ocupado = true;
     try {
-      await carregaNovos();
-      if (aba === 'quadro') await carregaQuadro();
-      if (aba === 'painel') await carregaResumo();
-      if (aba === 'pedidos') await carregaLista(true);
-      if (aberto && !o.semDetalhe) await recarregaDetalhe();
-      marcaConexao();
+      const mudou = await carregaPainel(o.forca);
+      if (mudou || o.forca) {
+        if (aba === 'painel') await carregaResumo();
+        if (aba === 'pedidos') await carregaLista(true);
+        if (aberto && !o.semDetalhe) await recarregaDetalhe();
+      }
+      falhou = false;
     } catch (e) {
-      if (e && e.message !== 'sem_acesso') { conexaoFalhou = true; marcaConexao(); if (!o.silencioso) toast('Não deu para atualizar', textoErro(e), { erro: true, tempo: 5000 }); }
+      if (eu && e.message !== 'sem_login') { falhou = true; if (!o.silencioso) toast('Não deu para atualizar', textoErro(e), { erro: true, tempo: 5000 }); }
     } finally {
       ocupado = false;
-      if (deNovo) { deNovo = false; atualiza({ silencioso: true }); }
+      if (eu) marcaConexao();
+      if (deNovo) { const d = deNovo; deNovo = null; atualiza(d); } else agendaConferencia();
     }
   }
-  let tAgenda = 0;
-  const agenda = () => { clearTimeout(tAgenda); tAgenda = setTimeout(() => atualiza({ silencioso: true }), 400); };
 
   function avisaNovo(p) {
     if (avisados.has(p.numero)) return;
@@ -297,23 +327,21 @@
     if (!lista.length) { ul.appendChild(el('li', 'col-vazio', VAZIO[nome])); return; }
     lista.forEach(p => ul.appendChild(cartao(p, fim)));
   }
-  async function carregaQuadro() {
-    const ativos = await rpc('admin_pedidos', { p_status: [...COLS.novo, ...COLS.preparo, ...COLS.pronto], p_teste: f.testes, p_limite: 200 });
-    const fim = await rpc('admin_pedidos', { p_status: ['concluido', 'cancelado'], p_de: inicioDia(0), p_teste: f.testes, p_limite: 30 });
+  function desenhaQuadro(ativos, fim) {
     const fila = (a, b) => (a.criado_em < b.criado_em ? -1 : 1);
-    for (const [nome, sts] of Object.entries(COLS)) coluna(nome, ativos.pedidos.filter(p => sts.includes(p.status)).sort(fila), false);
-    coluna('fim', fim.pedidos, true);
+    for (const [nome, sts] of Object.entries(COLS)) coluna(nome, ativos.filter(p => sts.includes(p.status)).sort(fila), false);
+    coluna('fim', fim, true);
   }
   async function avanca(p, para, btn) {
     $$('button', btn.closest('.cp')).forEach(b => { b.disabled = true; });
     btn.setAttribute('aria-busy', 'true');
     try {
-      await rpc('admin_mudar_status', { p_id: p.id, p_para: para, p_de: p.status });
+      await api('status', null, { id: p.id, para, de: p.status });
       toast(`Pedido nº ${p.numero}: ${NOME[para]}`, null, { tempo: 3000 });
     } catch (e) {
       toast('Não mudou o status', textoErro(e), { erro: true });
     } finally {
-      atualiza({ silencioso: true });
+      atualiza({ silencioso: true, forca: true });
     }
   }
   // o tempo de espera de cada cartão anda sozinho
@@ -333,32 +361,35 @@
     if (som && novosAgora > 0) tAlarme = setInterval(() => { if (novosAgora > 0 && som && eu) bip(); else clearInterval(tAlarme); }, 20000);
   }
 
-  /* ---------- tempo real (e o plano B) ---------- */
-  let canal = null, aoVivo = false, conexaoFalhou = false, relogio = 0;
+  /* ---------- conferência automática ---------- */
+  // 10 s com a tela à vista; 30 s com a aba escondida. Com a loja fechada, ou sem ninguém mexer no painel há 3 horas e
+  // sem pedido em andamento, confere a cada 5 minutos: o banco do plano grátis dorme depois de 5 minutos parado e assim
+  // não gasta a cota à toa. Qualquer toque na tela volta ao normal na hora.
+  let tConf = 0, falhou = false, ultimoToque = Date.now();
+  const economia = () => !lojaAberta || (Date.now() - ultimoToque > 3 * 3600e3 && ativosAgora === 0);
+  const espera = () => (economia() ? 300e3 : document.hidden ? 30e3 : 10e3);
+  function agendaConferencia() { clearTimeout(tConf); if (eu) tConf = setTimeout(() => atualiza({ silencioso: true }), espera()); }
   function marcaConexao() {
     const l = $('[data-live]'), t = $('[data-live-txt]');
     l.classList.remove('on', 'poll', 'off');
     if (!navigator.onLine) { l.classList.add('off'); t.textContent = 'Sem internet'; l.title = 'Sem internet: os pedidos voltam a aparecer quando a conexão voltar.'; return; }
-    if (aoVivo) { l.classList.add('on'); t.textContent = 'Ao vivo'; l.title = 'Pedidos novos aparecem na hora.'; }
-    else { l.classList.add('poll'); t.textContent = 'Conferindo a cada 20s'; l.title = 'O tempo real não conectou; o painel confere os pedidos a cada 20 segundos.'; }
-    conexaoFalhou = false;
+    if (falhou) { l.classList.add('off'); t.textContent = 'Sem conexão'; l.title = 'Não deu para falar com o servidor agora; o painel tenta de novo sozinho.'; return; }
+    if (economia()) {
+      l.classList.add('poll');
+      t.textContent = lojaAberta ? 'Modo economia' : 'Loja fechada';
+      l.title = lojaAberta ? 'Ninguém mexe no painel há 3 horas: ele confere os pedidos a cada 5 minutos. Toque em qualquer lugar para voltar ao normal.' : 'A loja está fechada para pedidos pelo site: o painel confere a cada 5 minutos.';
+      return;
+    }
+    l.classList.add('on'); t.textContent = 'Atualiza a cada 10 s'; l.title = 'O painel confere os pedidos sozinho a cada 10 segundos.';
   }
-  function ligaTempoReal() {
-    canal = sb.channel('painel-pedidos')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, ev => {
-        const n = ev.new || {};
-        if (ev.eventType === 'INSERT' && n.status === 'novo' && (!n.teste || f.testes)) avisaNovo(n);
-        agenda();
-      })
-      .subscribe(st => { aoVivo = st === 'SUBSCRIBED'; marcaConexao(); if (aoVivo) agenda(); });
-    clearInterval(relogio);
-    // conferência periódica: a cada 20s sem tempo real, a cada 60s com ele (rede de segurança)
-    let passo = 0;
-    relogio = setInterval(() => { passo++; if (document.hidden) return; if (!aoVivo || passo % 3 === 0) atualiza({ silencioso: true }); }, 20000);
-  }
-  window.addEventListener('online', () => { marcaConexao(); atualiza({ silencioso: true }); });
-  window.addEventListener('offline', marcaConexao);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && eu) atualiza({ silencioso: true }); });
+  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => {
+    const estava = !!eu && economia();
+    ultimoToque = Date.now();
+    if (estava && !economia()) { marcaConexao(); atualiza({ silencioso: true }); }
+  }, { passive: true }));
+  window.addEventListener('online', () => { if (eu) { marcaConexao(); atualiza({ silencioso: true }); } });
+  window.addEventListener('offline', () => { if (eu) marcaConexao(); });
+  document.addEventListener('visibilitychange', () => { if (eu) { if (document.hidden) agendaConferencia(); else atualiza({ silencioso: true }); } });
 
   /* ---------- detalhe do pedido ---------- */
   const sheet = $('[data-sheet]'), sheetBg = $('[data-sheet-bg]'), corpo = $('[data-d-body]');
@@ -381,7 +412,7 @@
 
   async function recarregaDetalhe() {
     if (!aberto) return;
-    try { desenhaDetalhe(await rpc('admin_pedido', { p_id: aberto.id })); }
+    try { desenhaDetalhe(await api('pedido', { id: aberto.id })); }
     catch (e) { corpo.innerHTML = ''; corpo.appendChild(el('p', 'alert', textoErro(e))); }
   }
   function sec(titulo) { const s = el('section', 'd-sec'); s.appendChild(el('h3', null, titulo)); return s; }
@@ -486,7 +517,7 @@
     $$('button', corpo).forEach(b => { b.disabled = true; });
     if (btn) btn.setAttribute('aria-busy', 'true');
     try {
-      const novo = await rpc('admin_mudar_status', { p_id: p.id, p_para: para, p_de: p.status, p_nota: nota || null });
+      const novo = await api('status', null, { id: p.id, para, de: p.status, nota: nota || null });
       desenhaDetalhe(novo);
       toast(`Pedido nº ${p.numero}: ${NOME[para]}`, null, { tempo: 3500 });
       atualiza({ silencioso: true, semDetalhe: true });
@@ -502,8 +533,10 @@
   const centavos = v => { const s = String(v || '').trim(); if (!s) return null; const n = Math.round(parseFloat(s.replace(/[^\d,.]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')) * 100); return Number.isFinite(n) ? n : NaN; };
   async function carregaConfig() {
     try {
-      const c = await rpc('admin_config');
+      const c = await api('config');
       cfgForm.aceitando_pedidos.checked = c.aceitando_pedidos;
+      lojaAberta = c.aceitando_pedidos !== false;
+      marcaConexao();
       cfgForm.mensagem_pausa.value = c.mensagem_pausa || '';
       cfgForm.taxa.value = reais(c.taxa_entrega_centavos);
       cfgForm.minimo.value = c.pedido_minimo_centavos ? reais(c.pedido_minimo_centavos) : '';
@@ -524,72 +557,147 @@
     if (!pags.length) { err.textContent = 'Deixe pelo menos uma forma de pagamento.'; err.hidden = false; return; }
     btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
     try {
-      await rpc('admin_salvar_config', { p: { aceitando_pedidos: cfgForm.aceitando_pedidos.checked, mensagem_pausa: cfgForm.mensagem_pausa.value, taxa_entrega_centavos: taxa == null ? '' : taxa, pedido_minimo_centavos: minimo || 0, pagamentos: pags } });
+      await api('salvar_config', null, { p: { aceitando_pedidos: cfgForm.aceitando_pedidos.checked, mensagem_pausa: cfgForm.mensagem_pausa.value, taxa_entrega_centavos: taxa == null ? '' : taxa, pedido_minimo_centavos: minimo || 0, pagamentos: pags } });
       ok.hidden = false;
       await carregaConfig();
+      atualiza({ silencioso: true });
     } catch (ex) { err.textContent = textoErro(ex); err.hidden = false; }
     finally { btn.removeAttribute('aria-busy'); btn.disabled = false; }
   });
   $('[data-apagar-testes]').addEventListener('click', async e => {
     if (!confirm('Apagar todos os pedidos marcados como teste? Os pedidos reais não são apagados.')) return;
-    const msg = $('[data-apagar-msg]');
-    e.currentTarget.disabled = true;
-    try { const n = await rpc('admin_apagar_testes'); msg.textContent = `${n} ${n === 1 ? 'pedido de teste apagado' : 'pedidos de teste apagados'}.`; }
+    const msg = $('[data-apagar-msg]'), b = e.currentTarget;
+    b.disabled = true;
+    try { const { apagados: n } = await api('apagar_testes', null, {}); msg.textContent = `${n} ${n === 1 ? 'pedido de teste apagado' : 'pedidos de teste apagados'}.`; }
     catch (ex) { msg.textContent = textoErro(ex); }
-    finally { e.currentTarget.disabled = false; }
+    finally { b.disabled = false; }
+  });
+
+  /* ---------- equipe (só o dono vê e mexe) ---------- */
+  const eqBox = $('[data-equipe-box]'), eqLista = $('[data-equipe]'), eqForm = $('[data-equipe-form]');
+  const fData = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  async function carregaEquipe() {
+    const dono = !!eu && eu.papel === 'dono';
+    eqBox.hidden = !dono;
+    if (!dono) return;
+    try {
+      const { equipe } = await api('equipe');
+      eqLista.innerHTML = '';
+      equipe.forEach(p => {
+        const li = el('li', p.ativo ? '' : 'inativo');
+        const info = el('div', 'eq-info');
+        const nome = el('b', null, p.nome);
+        if (p.email === eu.email) nome.append(el('span', 'muted', ' (você)'));
+        info.append(nome, el('span', 'eq-email', p.email), el('small', null, `${p.papel === 'dono' ? 'Dono' : 'Atendente'}${p.ativo ? '' : ' · desativado'} · ${p.ultimo_login ? `último login ${fData.format(new Date(p.ultimo_login))}` : 'ainda não entrou'}`));
+        li.appendChild(info);
+        if (p.email !== eu.email) {
+          const acoes = el('div', 'eq-acoes');
+          const at = el('button', 'btn btn-line btn-sm', p.ativo ? 'Desativar' : 'Reativar'); at.type = 'button';
+          at.addEventListener('click', () => salvaPessoa({ email: p.email, nome: p.nome, papel: p.papel, ativo: !p.ativo }, at));
+          const rm = el('button', 'btn btn-red btn-sm', 'Remover'); rm.type = 'button';
+          rm.addEventListener('click', async () => {
+            if (!confirm(`Remover ${p.nome} (${p.email}) da equipe? O acesso ao painel acaba na hora.`)) return;
+            rm.disabled = true;
+            try { await api('equipe_remover', null, { email: p.email }); await carregaEquipe(); }
+            catch (e) { toast('Não removeu', textoErro(e), { erro: true }); rm.disabled = false; }
+          });
+          acoes.append(at, rm);
+          li.appendChild(acoes);
+        }
+        eqLista.appendChild(li);
+      });
+    } catch (e) { toast('Não deu para abrir a equipe', textoErro(e), { erro: true }); }
+  }
+  async function salvaPessoa(p, btn) {
+    btn.disabled = true;
+    try { await api('equipe_salvar', null, p); await carregaEquipe(); }
+    catch (e) { toast('Não salvou', textoErro(e), { erro: true }); btn.disabled = false; }
+  }
+  eqForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = $('[data-equipe-err]'), btn = $('button[type=submit]', eqForm);
+    err.hidden = true;
+    const email = eqForm.email.value.trim().toLowerCase(), nome = eqForm.nome.value.trim();
+    const erro = nome.length < 2 ? 'Escreva o nome (pelo menos 2 letras).' : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? 'Confira o e-mail.' : '';
+    if (erro) { err.textContent = erro; err.hidden = false; return; }
+    btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
+    try {
+      await api('equipe_salvar', null, { email, nome, papel: eqForm.dono.checked ? 'dono' : 'atendente', ativo: true });
+      eqForm.reset();
+      await carregaEquipe();
+      toast(`${nome} entrou na equipe`, `Já pode entrar no painel com a conta da Vercel do e-mail ${email}.`, { tempo: 8000 });
+    } catch (ex) { err.textContent = textoErro(ex); err.hidden = false; }
+    finally { btn.removeAttribute('aria-busy'); btn.disabled = false; }
   });
 
   /* ---------- login e sessão ---------- */
-  const login = $('[data-login]');
-  login.addEventListener('submit', async e => {
-    e.preventDefault();
-    const err = $('[data-login-err]'), btn = $('[data-login-btn]');
-    err.hidden = true;
-    const email = login.email.value.trim(), senha = login.senha.value;
-    if (!email || !senha) { err.textContent = 'Preencha o e-mail e a senha.'; err.hidden = false; return; }
-    btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
-    const { error } = await sb.auth.signInWithPassword({ email, password: senha });
-    btn.removeAttribute('aria-busy'); btn.disabled = false;
-    if (error) {
-      err.textContent = /invalid/i.test(error.message) ? 'E-mail ou senha errados.' : /rate|many/i.test(error.message) ? 'Muitas tentativas. Espere alguns minutos.' : /fetch|network/i.test(error.message) ? 'Sem conexão. Confira a internet.' : 'Não deu para entrar agora.';
-      err.hidden = false;
-      login.senha.select();
-      return;
-    }
-    login.senha.value = '';
-    entra();
-  });
-  async function sair() {
-    // para tudo antes de sair, para nenhuma conferência agendada rodar já sem login
-    eu = null; clearInterval(relogio); clearTimeout(tAgenda); clearTimeout(tBusca); clearInterval(tAlarme); novosAgora = 0;
-    try { await sb.removeAllChannels(); } catch (e) {}
-    await sb.auth.signOut();
-    conhecidos = null; avisados.clear(); fechaPedido();
-    document.title = 'Painel · Coxitas';
+  const ERRO_LOGIN = {
+    login_cancelado: 'O login foi cancelado.',
+    login_expirado: 'O login demorou demais ou foi aberto em outra aba. Tente de novo.',
+    login_recusado: 'A Vercel não confirmou o login. Tente de novo.',
+    email_nao_verificado: 'O e-mail da sua conta da Vercel ainda não foi confirmado. Confirme o e-mail na Vercel e tente de novo.',
+    muitas_tentativas: 'Muitas tentativas seguidas. Espere 10 minutos e tente de novo.',
+    sessao: 'Sua sessão terminou. Entre de novo para continuar.',
+    sem_conexao: 'Sem conexão com o servidor. Confira a internet e recarregue a página.',
+  };
+  function mostraLogin(codigo) {
+    const err = $('[data-login-err]');
+    err.textContent = ERRO_LOGIN[codigo] || '';
+    err.hidden = !ERRO_LOGIN[codigo];
+    $('[data-entrar]').removeAttribute('aria-busy');
     mostraTela('login');
-    login.email.focus();
+  }
+  // o que falta ligar na Vercel (a API só conta se está ligado ou não; segredo nenhum passa por aqui)
+  function mostraConfig(est) {
+    const passo = (nome, ok, txt) => { const li = $(`[data-passo="${nome}"]`); li.classList.toggle('ok', ok); $('span', li).textContent = txt; };
+    if (!est) {
+      $('[data-cfg-msg]').textContent = 'Não deu para falar com a API do site. Confira a internet e recarregue a página.';
+      $('[data-passos]').hidden = true;
+    } else {
+      passo('banco', est.banco, est.banco ? 'Ligado.' : 'Falta ligar o Postgres (Neon) na aba Storage do projeto na Vercel.');
+      passo('login', est.login, est.login ? 'Configurado.' : 'Falta criar o app "Sign in with Vercel" e salvar o ID e o segredo dele nas variáveis do projeto.');
+      $('[data-retorno]').textContent = est.retorno;
+    }
+    mostraTela('config');
+  }
+  function para() {
+    eu = null; clearTimeout(tConf); clearTimeout(tBusca); clearInterval(tAlarme);
+    novosAgora = 0; conhecidos = null; marca = null; marcaChave = ''; avisados.clear(); fechaPedido();
+    document.title = 'Painel · Coxitas';
+  }
+  function sessaoAcabou() { if (!eu) return; para(); mostraLogin('sessao'); }
+  async function sair() {
+    para();
+    try { await fetch('../api/auth/sair', { method: 'POST' }); } catch (e) {}
+    mostraLogin();
   }
   $$('[data-sair]').forEach(b => b.addEventListener('click', sair));
-  sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && eu) { eu = null; clearInterval(relogio); mostraTela('login'); toast('Sua sessão terminou', 'Entre de novo para continuar.', { erro: true }); } });
+  $('[data-entrar]').addEventListener('click', e => { e.currentTarget.setAttribute('aria-busy', 'true'); });
+  // entrada de teste sem a Vercel: a API só liga isso no computador de quem desenvolve (nunca na Vercel)
+  $('[data-dev]').addEventListener('submit', e => {
+    e.preventDefault();
+    location.href = `../api/auth/dev?email=${encodeURIComponent(e.currentTarget.email.value.trim())}`;
+  });
 
-  async function entra() {
-    try {
-      eu = await rpc('admin_eu');
-    } catch (e) {
-      if (e.message === 'sem_acesso') return mostraTela('negado');
-      mostraTela('login');
-      const err = $('[data-login-err]'); err.textContent = textoErro(e); err.hidden = false;
-      return;
-    }
+  function entra(dados) {
+    eu = dados;
     $('[data-me-nome]').textContent = eu.nome;
     $('[data-me-papel]').textContent = eu.papel === 'dono' ? 'Dono' : 'Atendente';
     mostraTela('app');
-    ligaTempoReal();
+    marcaConexao();
     vaiPara(location.hash.slice(1) || 'quadro');
   }
 
   (async () => {
-    const { data } = await sb.auth.getSession();
-    if (data.session) entra(); else { mostraTela('login'); login.email.focus(); }
+    // a volta do login traz ?erro=... (e o e-mail, quando a conta não é da equipe); sai do endereço depois de lido
+    const q = new URLSearchParams(location.search);
+    const erro = q.get('erro') || '', emailNegado = q.get('email') || '';
+    if (location.search) history.replaceState(null, '', location.pathname + location.hash);
+    let est = null;
+    try { const r = await fetch('../api/auth/estado', { cache: 'no-store' }); if (r.ok) est = await r.json(); } catch (e) {}
+    if (!est || !est.banco || (!est.login && !est.dev)) return mostraConfig(est);
+    $('[data-dev]').hidden = !est.dev;
+    if (erro === 'sem_acesso') { $('[data-negado-email]').textContent = emailNegado || 'desta conta'; return mostraTela('negado'); }
+    if (est.eu) entra(est.eu); else mostraLogin(erro);
   })();
 })();

@@ -1,14 +1,12 @@
 -- =====================================================================================
--- Coxitas · banco de dados dos pedidos (Supabase, Postgres 15 ou mais novo)
+-- Coxitas · banco de dados dos pedidos (Postgres na Vercel / Neon)
 --
--- Como usar: no painel do Supabase, abra "SQL Editor", cole este arquivo inteiro e rode.
--- Depois rode o 02-cardapio.sql. Os dois podem ser rodados de novo sem perder pedidos:
--- as tabelas só são criadas se faltarem e as funções são atualizadas.
+-- Não precisa rodar à mão: a API (/api) instala e atualiza este esquema sozinha na primeira chamada
+-- (lib/db.js, com trava para duas instâncias não instalarem juntas). Pode rodar de novo sem perder pedidos.
 --
--- Segurança: o site e o painel usam a chave pública (anon). Ela não abre nada sozinha:
--- toda tabela tem RLS ligado e ninguém de fora lê, grava ou apaga direto nas tabelas.
--- O cliente só consegue chamar criar_pedido, acompanhar_pedido e config_publica.
--- O painel só funciona para quem está logado E cadastrado na tabela "equipe".
+-- Segurança: o banco não fica exposto na internet. Só as funções da Vercel conversam com ele, usando a
+-- DATABASE_URL (variável secreta do projeto). O site chama /api/publico (criar pedido, acompanhar, config)
+-- e o painel chama /api/admin, que só responde para quem entrou com a conta da Vercel e está na equipe.
 -- =====================================================================================
 
 -- ---------- configuração da loja (uma linha só) ----------
@@ -94,19 +92,47 @@ create table if not exists public.pedido_eventos (
   status_de text,
   status_para text not null,
   nota text check (nota is null or char_length(nota) <= 300),
-  autor uuid,
+  autor text,
   autor_nome text
 );
 create index if not exists pedido_eventos_pedido_idx on public.pedido_eventos (pedido_id, criado_em);
 
--- quem pode entrar no painel (a conta é criada em Authentication > Users; aqui ela ganha acesso)
+-- quem pode entrar no painel: e-mail verificado pela Vercel (login "Sign in with Vercel")
 create table if not exists public.equipe (
-  user_id uuid primary key references auth.users (id) on delete cascade,
+  email text primary key check (email = lower(email) and email ~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$'),
   nome text not null check (char_length(nome) between 2 and 60),
   papel text not null default 'atendente' check (papel in ('dono', 'atendente')),
   ativo boolean not null default true,
+  criado_em timestamptz not null default now(),
+  ultimo_login timestamptz
+);
+
+-- sessões do painel (o navegador guarda só um código aleatório; aqui fica o hash dele)
+create table if not exists public.sessoes (
+  id_hash text primary key,
+  email text not null references public.equipe (email) on delete cascade on update cascade,
+  criada_em timestamptz not null default now(),
+  expira_em timestamptz not null,
+  ip text,
+  agente text
+);
+create index if not exists sessoes_expira_idx on public.sessoes (expira_em);
+
+-- login em andamento (PKCE do Sign in with Vercel): vale 10 minutos e é usado uma vez só
+create table if not exists public.oauth_estados (
+  id_hash text primary key,
+  verificador text not null,
+  nonce text not null,
   criado_em timestamptz not null default now()
 );
+
+-- freio por IP (criar pedido, acompanhar, login)
+create table if not exists public.limites (
+  id bigint generated always as identity primary key,
+  chave text not null,
+  criado_em timestamptz not null default now()
+);
+create index if not exists limites_idx on public.limites (chave, criado_em);
 
 -- tentativas erradas de acompanhar pedido (freio contra quem tenta adivinhar)
 create table if not exists public.rastreio_falhas (
@@ -130,53 +156,6 @@ drop trigger if exists produtos_atualizado_em on public.produtos;
 create trigger produtos_atualizado_em before update on public.produtos for each row execute function public.tocar_atualizado_em();
 drop trigger if exists loja_config_atualizado_em on public.loja_config;
 create trigger loja_config_atualizado_em before update on public.loja_config for each row execute function public.tocar_atualizado_em();
-
--- =====================================================================================
--- Permissões: RLS em tudo, nada liberado direto nas tabelas para quem vem de fora
--- =====================================================================================
-alter table public.loja_config enable row level security;
-alter table public.produtos enable row level security;
-alter table public.pedidos enable row level security;
-alter table public.pedido_itens enable row level security;
-alter table public.pedido_eventos enable row level security;
-alter table public.equipe enable row level security;
-alter table public.rastreio_falhas enable row level security;
-
-revoke all on table public.loja_config, public.produtos, public.pedidos, public.pedido_itens,
-  public.pedido_eventos, public.equipe, public.rastreio_falhas from anon, authenticated;
-revoke all on sequence public.pedido_numero_seq from anon, authenticated;
-
--- a pessoa logada é da equipe (e está ativa)?
-create or replace function public.e_equipe() returns boolean
-language sql stable security definer set search_path = public, pg_temp as $$
-  select exists (select 1 from public.equipe where user_id = auth.uid() and ativo);
-$$;
-create or replace function public.e_dono() returns boolean
-language sql stable security definer set search_path = public, pg_temp as $$
-  select exists (select 1 from public.equipe where user_id = auth.uid() and ativo and papel = 'dono');
-$$;
-
--- leitura direta só para a equipe (é o que deixa o painel receber pedidos novos na hora)
-grant select on public.pedidos, public.pedido_itens, public.pedido_eventos to authenticated;
-drop policy if exists equipe_le_pedidos on public.pedidos;
-create policy equipe_le_pedidos on public.pedidos for select to authenticated using (public.e_equipe());
-drop policy if exists equipe_le_itens on public.pedido_itens;
-create policy equipe_le_itens on public.pedido_itens for select to authenticated using (public.e_equipe());
-drop policy if exists equipe_le_eventos on public.pedido_eventos;
-create policy equipe_le_eventos on public.pedido_eventos for select to authenticated using (public.e_equipe());
--- cardápio é público (só os itens ativos)
-grant select on public.produtos to anon, authenticated;
-drop policy if exists cardapio_publico on public.produtos;
-create policy cardapio_publico on public.produtos for select to anon, authenticated using (ativo);
-
--- tempo real: o painel é avisado quando entra ou muda um pedido
-do $$
-begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
-     and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'pedidos') then
-    alter publication supabase_realtime add table public.pedidos;
-  end if;
-end $$;
 
 -- =====================================================================================
 -- Funções auxiliares
@@ -411,26 +390,9 @@ begin
 end $$;
 
 -- =====================================================================================
--- Funções do painel (só equipe logada)
+-- Funções do painel (a API só chama depois de conferir a sessão)
 -- =====================================================================================
-
-create or replace function public.exigir_equipe() returns void
-language plpgsql stable security definer set search_path = public, pg_temp as $$
-begin
-  if not public.e_equipe() then
-    raise exception using errcode = '42501', message = 'sem_acesso';
-  end if;
-end $$;
-
--- quem está logado
-create or replace function public.admin_eu() returns jsonb
-language plpgsql stable security definer set search_path = public, pg_temp as $$
-declare v public.equipe;
-begin
-  perform public.exigir_equipe();
-  select * into v from public.equipe where user_id = auth.uid();
-  return jsonb_build_object('nome', v.nome, 'papel', v.papel);
-end $$;
+drop function if exists public.admin_mudar_status(uuid, text, text, text);
 
 -- números do painel no período
 create or replace function public.admin_resumo(p_de timestamptz default null, p_ate timestamptz default null, p_teste boolean default false)
@@ -438,7 +400,6 @@ returns jsonb
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare r jsonb;
 begin
-  perform public.exigir_equipe();
   select jsonb_build_object(
     'recebidos', count(*),
     'novos', count(*) filter (where status = 'novo'),
@@ -465,7 +426,6 @@ declare
   v_dig text := regexp_replace(coalesce(p_busca, ''), '\D', '', 'g');
   v_total integer; v_lista jsonb;
 begin
-  perform public.exigir_equipe();
   with f as (
     select p.* from public.pedidos p
     where (p_de is null or p.criado_em >= p_de) and (p_ate is null or p.criado_em < p_ate)
@@ -487,7 +447,6 @@ create or replace function public.admin_pedido(p_id uuid) returns jsonb
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v public.pedidos;
 begin
-  perform public.exigir_equipe();
   select * into v from public.pedidos where id = p_id;
   if not found then perform public.falha('nao_encontrado'); end if;
   return public.pedido_json(v) || jsonb_build_object(
@@ -498,7 +457,8 @@ begin
 end $$;
 
 -- muda o status. p_de = o status que a tela estava mostrando: se outra pessoa mudou antes, avisa em vez de atropelar
-create or replace function public.admin_mudar_status(p_id uuid, p_para text, p_de text default null, p_nota text default null)
+create or replace function public.admin_mudar_status(p_id uuid, p_para text, p_de text default null, p_nota text default null,
+  p_autor_email text default null, p_autor_nome text default null)
 returns jsonb
 language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
@@ -507,17 +467,16 @@ declare
   v_antes text;
   v_nota text := nullif(btrim(coalesce(p_nota, '')), '');
 begin
-  perform public.exigir_equipe();
   select * into v from public.pedidos where id = p_id for update;
   if not found then perform public.falha('nao_encontrado'); end if;
   if p_de is not null and p_de <> v.status then perform public.falha('status_mudou', v.status); end if;
   if not (p_para = any (public.proximos_status(v.status, v.modalidade))) then perform public.falha('mudanca_invalida', v.status); end if;
   if char_length(v_nota) > 300 then perform public.falha('nota_longa'); end if;
-  select nome into v_autor from public.equipe where user_id = auth.uid();
+  v_autor := p_autor_nome;
   v_antes := v.status;
   update public.pedidos set status = p_para where id = p_id returning * into v;
   insert into public.pedido_eventos (pedido_id, status_de, status_para, nota, autor, autor_nome)
-  values (v.id, v_antes, p_para, v_nota, auth.uid(), v_autor);
+  values (v.id, v_antes, p_para, v_nota, p_autor_email, v_autor);
   return public.admin_pedido(v.id);
 end $$;
 
@@ -525,7 +484,6 @@ end $$;
 create or replace function public.admin_config() returns jsonb
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 begin
-  perform public.exigir_equipe();
   return (select to_jsonb(c) - 'id' from public.loja_config c where c.id = 1);
 end $$;
 
@@ -534,8 +492,6 @@ language plpgsql volatile security definer set search_path = public, pg_temp as 
 declare
   v_pag text[];
 begin
-  perform public.exigir_equipe();
-  if not public.e_dono() then raise exception using errcode = '42501', message = 'so_dono'; end if;
   if p ? 'pagamentos' then
     select coalesce(array_agg(btrim(x)), '{}') into v_pag from jsonb_array_elements_text(p -> 'pagamentos') x where btrim(x) <> '';
     if cardinality(v_pag) = 0 or cardinality(v_pag) > 10 or exists (select 1 from unnest(v_pag) x where char_length(x) > 40) then
@@ -557,30 +513,7 @@ create or replace function public.admin_apagar_testes() returns integer
 language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare n integer;
 begin
-  perform public.exigir_equipe();
-  if not public.e_dono() then raise exception using errcode = '42501', message = 'so_dono'; end if;
   delete from public.pedidos where teste;
   get diagnostics n = row_count;
   return n;
 end $$;
-
--- =====================================================================================
--- Quem pode chamar cada função
--- =====================================================================================
-revoke execute on function public.tocar_atualizado_em(), public.e_equipe(), public.e_dono(), public.falha(text, text),
-  public.pedido_json(public.pedidos), public.proximos_status(text, text), public.exigir_equipe(),
-  public.config_publica(), public.criar_pedido(jsonb), public.acompanhar_pedido(bigint, text, text),
-  public.admin_eu(), public.admin_resumo(timestamptz, timestamptz, boolean),
-  public.admin_pedidos(timestamptz, timestamptz, text[], text, boolean, integer, integer), public.admin_pedido(uuid),
-  public.admin_mudar_status(uuid, text, text, text), public.admin_config(), public.admin_salvar_config(jsonb),
-  public.admin_apagar_testes()
-  from public, anon, authenticated;
-
-grant execute on function public.config_publica(), public.criar_pedido(jsonb), public.acompanhar_pedido(bigint, text, text)
-  to anon, authenticated;
-grant execute on function public.e_equipe() to authenticated;
-grant execute on function public.admin_eu(), public.admin_resumo(timestamptz, timestamptz, boolean),
-  public.admin_pedidos(timestamptz, timestamptz, text[], text, boolean, integer, integer), public.admin_pedido(uuid),
-  public.admin_mudar_status(uuid, text, text, text), public.admin_config(), public.admin_salvar_config(jsonb),
-  public.admin_apagar_testes()
-  to authenticated;

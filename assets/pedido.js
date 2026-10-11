@@ -2,9 +2,9 @@
 (() => {
   'use strict';
   const WHATSAPP = '5517996433594';
+  // o endereço oficial é o da Vercel (o link antigo do GitHub Pages leva para lá)
+  if (/\.github\.io$/.test(location.hostname)) { location.replace('https://coxitas.vercel.app/pedido/' + location.search); return; }
   const $ = (s, r = document) => r.querySelector(s);
-  const CX = window.COXITAS || {};
-  const API = CX.supabaseUrl && CX.supabaseChave ? { url: String(CX.supabaseUrl).replace(/\/+$/, ''), chave: CX.supabaseChave } : null;
 
   const NOME = { novo: 'Recebido', confirmado: 'Confirmado', em_preparo: 'Em preparo', saiu_entrega: 'Saiu para entrega', pronto_retirada: 'Pronto para retirada', concluido: 'Concluído', cancelado: 'Cancelado' };
   const MSG = {
@@ -21,15 +21,16 @@
   const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
   const quando = iso => { const d = new Date(iso); return `${dia.format(d)} às ${hora.format(d)}`; };
 
-  async function api(fn, args) {
+  // API do próprio site (funções da Vercel): só devolve andamento e itens, nunca telefone ou endereço
+  async function api(args) {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 15000);
     let r;
     try {
-      r = await fetch(`${API.url}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: API.chave, Authorization: `Bearer ${API.chave}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args), signal: ctl.signal });
+      r = await fetch('../api/publico/acompanhar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args), signal: ctl.signal });
     } catch (e) { throw { rede: true }; } finally { clearTimeout(t); }
     const body = await r.json().catch(() => null);
-    if (!r.ok) throw { code: body && body.message };
+    if (!r.ok) throw { code: body && body.erro, status: r.status };
     return body;
   }
 
@@ -125,12 +126,19 @@
     if (!atual) return;
     if (document.hidden) { timer = setTimeout(atualiza, 30000); return; }
     try {
-      const p = await api('acompanhar_pedido', { p_numero: atual.numero, p_codigo: atual.codigo });
+      const p = await api({ numero: atual.numero, codigo: atual.codigo });
       if (p && !p.erro) mostra(p); else timer = setTimeout(atualiza, 30000);
     } catch (e) { timer = setTimeout(atualiza, 30000); }
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && atual) { clearTimeout(timer); atualiza(); } });
 
+  // sem API ou sem banco ligado (site fora da Vercel): explica e manda falar no WhatsApp
+  function semApi(err) {
+    if (!err || !(err.status === 404 || err.status === 405 || err.status === 503)) return false;
+    find.hidden = true; ped.hidden = true; loading.hidden = true;
+    $('[data-sem-banco]').hidden = false;
+    return true;
+  }
   const ERRO = {
     nao_encontrado: 'Não achamos esse pedido. Confira o número e os 4 últimos dígitos do telefone.',
     muitas_tentativas: 'Muitas tentativas erradas para esse pedido. Tente de novo daqui a 1 hora ou fale com a Coxitas pelo WhatsApp.',
@@ -144,26 +152,26 @@
     if (!n || f.length !== 4) { findErr.textContent = 'Preencha o número do pedido e os 4 últimos dígitos do telefone.'; findErr.hidden = false; return; }
     findBtn.setAttribute('aria-busy', 'true'); findBtn.disabled = true;
     try {
-      const p = await api('acompanhar_pedido', { p_numero: +n, p_final_telefone: f });
+      const p = await api({ numero: n, final: f });
       if (p.erro) { findErr.textContent = ERRO[p.erro] || ERRO.nao_encontrado; findErr.hidden = false; return; }
       guarda(p);
       history.replaceState(null, '', `?n=${encodeURIComponent(p.numero)}&c=${encodeURIComponent(p.codigo)}`);
       mostra(p);
     } catch (err) {
-      findErr.textContent = err && err.rede ? 'Sem conexão agora. Tente de novo em instantes.' : 'Não deu para consultar agora. Tente de novo em instantes.';
+      if (semApi(err)) return;
+      findErr.textContent = err && err.rede ? 'Sem conexão agora. Tente de novo em instantes.' : err && err.code === 'muitas_tentativas' ? ERRO.muitas_tentativas : 'Não deu para consultar agora. Tente de novo em instantes.';
       findErr.hidden = false;
     } finally { findBtn.removeAttribute('aria-busy'); findBtn.disabled = false; }
   });
   $('[data-other]').addEventListener('click', () => { atual = null; history.replaceState(null, '', location.pathname); findForm.reset(); mostraBusca(); findForm.numero.focus(); });
 
   // começo: link com número e código abre direto; sem isso, mostra a busca
-  if (!API) { $('[data-sem-banco]').hidden = false; return; }
   const q = new URLSearchParams(location.search);
   const n = (q.get('n') || '').replace(/\D/g, ''), c = (q.get('c') || '').toLowerCase();
   if (n && /^[0-9a-f]{32}$/.test(c)) {
     loading.hidden = false;
-    api('acompanhar_pedido', { p_numero: +n, p_codigo: c })
-      .then(p => { if (p.erro) mostraBusca(ERRO.nao_encontrado); else { guarda(p); mostra(p); } })
-      .catch(err => mostraBusca(err && err.rede ? 'Sem conexão agora. Tente de novo em instantes.' : 'Não deu para consultar agora.'));
+    api({ numero: n, codigo: c })
+      .then(p => { if (p.erro) mostraBusca(ERRO[p.erro] || ERRO.nao_encontrado); else { guarda(p); mostra(p); } })
+      .catch(err => semApi(err) || mostraBusca(err && err.rede ? 'Sem conexão agora. Tente de novo em instantes.' : 'Não deu para consultar agora.'));
   } else mostraBusca();
 })();

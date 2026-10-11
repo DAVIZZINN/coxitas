@@ -7,13 +7,13 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0E0603">
-<!-- só carrega código daqui e só conversa com o Supabase (e com o Supabase local de teste) -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321; base-uri 'none'; form-action 'self'; object-src 'none'">
+<!-- só carrega código daqui e só conversa com a API do próprio site (a Vercel ainda manda cabeçalhos de segurança: vercel.json) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'">
 <link rel="icon" href="../favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="preload" href="../assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/app.css?v=1">
-<link rel="stylesheet" href="admin.css?v=2">
+<link rel="stylesheet" href="admin.css?v=3">
 </head>
 <body>
 <svg class="sprite" aria-hidden="true">
@@ -33,6 +33,7 @@
   <symbol id="i-board" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></g></symbol>
   <symbol id="i-moto" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h6l2-6h-4l-2-3H8M14 5h3l1 3"/></g></symbol>
   <symbol id="i-bag" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></g></symbol>
+  <symbol id="i-vercel" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3.5 22 20.5H2Z"/></symbol>
   <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
@@ -40,31 +41,44 @@
 <main class="center" data-v="config" hidden>
   <div class="card gate">
     <img src="../assets/img/icon-96.webp" width="56" height="56" alt="">
-    <h1 class="display">Falta ligar o banco de pedidos</h1>
-    <p class="muted">Crie o projeto no Supabase e preencha <code>assets/config.js</code> com a URL e a chave pública (passo a passo em <code>supabase/LEIA-ME.md</code>).</p>
+    <h1 class="display">Falta terminar de ligar o painel</h1>
+    <p class="muted" data-cfg-msg>O site já está no ar. Para os pedidos pelo site e o painel funcionarem, falta isto na Vercel:</p>
+    <ul class="passos" data-passos>
+      <li data-passo="banco"><b>Banco de pedidos</b><span>Conferindo…</span></li>
+      <li data-passo="login"><b>Login com a Vercel</b><span>Conferindo…</span></li>
+    </ul>
+    <p class="muted small">Endereço de retorno do login (vai no app da Vercel): <code data-retorno></code></p>
+    <p class="muted small">Passo a passo completo no arquivo <code>banco/LEIA-ME.md</code> do repositório do site.</p>
+    <a class="link back" href="../">Voltar para o site</a>
   </div>
 </main>
 
 <!-- login -->
 <main class="center" data-v="login" hidden>
-  <form class="card gate" data-login novalidate>
+  <div class="card gate">
     <img src="../assets/img/icon-96.webp" width="56" height="56" alt="">
     <h1 class="display">Painel da Coxitas</h1>
-    <p class="muted">Área da equipe. Entre com o e-mail e a senha cadastrados.</p>
-    <div class="field"><label for="l-email">E-mail</label><input class="input" id="l-email" name="email" type="email" autocomplete="username" required></div>
-    <div class="field"><label for="l-senha">Senha</label><input class="input" id="l-senha" name="senha" type="password" autocomplete="current-password" required></div>
+    <p class="muted">Área da equipe. Entre com a sua conta da Vercel: o painel confere se o e-mail dela está na equipe da loja. Nenhuma senha passa por este site.</p>
     <p class="alert" data-login-err role="alert" hidden></p>
-    <button class="btn" type="submit" data-login-btn>Entrar</button>
+    <a class="btn btn-vercel" href="../api/auth/entrar" data-entrar><svg class="ico" aria-hidden="true"><use href="#i-vercel"/></svg>Entrar com a Vercel</a>
+    <form class="dev" data-dev hidden novalidate>
+      <p class="note">Só no computador de teste: entrar sem a Vercel.</p>
+      <input class="input" name="email" type="email" placeholder="E-mail da equipe" aria-label="E-mail da equipe" autocomplete="off">
+      <button class="btn btn-line btn-sm" type="submit">Entrar (teste)</button>
+    </form>
     <a class="link back" href="../">Voltar para o site</a>
-  </form>
+  </div>
 </main>
 
 <!-- conta sem acesso -->
 <main class="center" data-v="negado" hidden>
   <div class="card gate">
+    <img src="../assets/img/icon-96.webp" width="56" height="56" alt="">
     <h1 class="display">Esta conta não tem acesso</h1>
-    <p class="muted">O login deu certo, mas este e-mail não está na equipe da loja. Peça para o dono liberar o acesso.</p>
-    <button class="btn btn-line" type="button" data-sair>Sair</button>
+    <p class="muted">O login com a Vercel deu certo, mas o e-mail <b data-negado-email></b> não está na equipe da loja.</p>
+    <p class="muted">Peça para o dono incluir este e-mail em <b>Loja › Equipe</b>. Se você tem outra conta da Vercel, saia desta em vercel.com e entre de novo.</p>
+    <a class="btn btn-line" href="../api/auth/entrar">Entrar de novo</a>
+    <a class="link back" href="../">Voltar para o site</a>
   </div>
 </main>
 
@@ -88,7 +102,7 @@
     <header class="bar">
       <h1 class="bar-h" data-titulo>Painel</h1>
       <div class="bar-tools">
-        <span class="live" data-live title="Conexão com os pedidos"><i></i><span data-live-txt>Conectando…</span></span>
+        <span class="live" data-live title="Conexão com os pedidos"><i></i><span data-live-txt>Conferindo…</span></span>
         <button class="icon-btn" type="button" data-som aria-pressed="false" title="Som de pedido novo"><svg class="ico" aria-hidden="true"><use href="#i-bell-off"/></svg><span class="sr" data-som-txt>Ligar o som de pedido novo</span></button>
         <button class="icon-btn" type="button" data-recarregar title="Atualizar agora"><svg class="ico" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr">Atualizar agora</span></button>
       </div>
@@ -174,6 +188,20 @@
         <p class="ok-msg" data-cfg-ok role="status" hidden>Salvo.</p>
         <button class="btn" type="submit" data-cfg-btn>Salvar</button>
       </form>
+      <div class="card equipe-box" data-equipe-box hidden>
+        <h3>Equipe</h3>
+        <p class="muted">Quem pode abrir o painel. Cada pessoa entra com a própria conta da Vercel (é grátis) que usa este mesmo e-mail. Atendente vê e atende os pedidos; dono também muda a loja e a equipe.</p>
+        <ul class="equipe" data-equipe></ul>
+        <form class="equipe-add" data-equipe-form novalidate>
+          <div class="grid2">
+            <div class="field"><label for="e-nome">Nome</label><input class="input" id="e-nome" name="nome" maxlength="60" autocomplete="off"></div>
+            <div class="field"><label for="e-email">E-mail da conta da Vercel</label><input class="input" id="e-email" name="email" type="email" maxlength="120" autocomplete="off" spellcheck="false"></div>
+          </div>
+          <label class="check"><input type="checkbox" name="dono"><span>Também é dono (pode mudar a loja e a equipe)</span></label>
+          <p class="alert" data-equipe-err role="alert" hidden></p>
+          <button class="btn btn-sm" type="submit">Adicionar à equipe</button>
+        </form>
+      </div>
       <div class="card danger" data-testes-box>
         <h3>Pedidos de teste</h3>
         <p class="muted">Pedidos feitos no computador de desenvolvimento ou com <code>?teste=1</code> no endereço do site ficam marcados como teste e não entram nos números. Aqui o dono apaga todos eles de uma vez (os pedidos reais não são tocados).</p>
@@ -199,8 +227,6 @@
 
 <p class="center muted" data-v="carregando">Carregando…</p>
 
-<script src="../assets/config.js?v=1"></script>
-<script src="vendor/supabase-2.116.0.js"></script>
-<script src="admin.js?v=2"></script>
+<script src="admin.js?v=3"></script>
 </body>
 </html>

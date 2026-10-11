@@ -97,6 +97,31 @@ code{padding:1px 6px;border-radius:6px;background:rgba(255,241,222,.08);font-siz
 .danger h3{font:700 16px/1.2 var(--f-text)}
 .danger .btn{justify-self:start}
 
+/* equipe */
+.equipe-box{display:grid;gap:14px;max-width:620px;margin-top:16px;padding:22px}
+.equipe-box h3{font:700 16px/1.2 var(--f-text)}
+.equipe{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.equipe li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card-2)}
+.equipe li.inativo{opacity:.62}
+.eq-info{display:grid;gap:2px;min-width:0}
+.eq-email{color:var(--text-2);font-size:14px;overflow-wrap:anywhere}
+.eq-info small{color:var(--text-3);font-size:13px}
+.eq-acoes{display:flex;gap:8px}
+.equipe-add{display:grid;gap:12px;padding-top:4px;border-top:1px solid var(--line)}
+.equipe-add .btn{justify-self:start}
+
+/* entrada */
+.btn-vercel{background:var(--cream);color:var(--ink)}
+.btn-vercel:hover{background:#fff;color:var(--ink)}
+.dev{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.passos{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.passos li{position:relative;display:grid;gap:2px;padding:10px 12px 10px 36px;border:1px solid var(--line);border-radius:12px;background:var(--card-2);font-size:14.5px}
+.passos li::before{content:"";position:absolute;left:13px;top:15px;width:11px;height:11px;border-radius:50%;background:var(--gold)}
+.passos li.ok::before{background:var(--s-concluido)}
+.passos span{color:var(--text-2)}
+.small{font-size:13.5px}
+.gate code{overflow-wrap:anywhere}
+
 /* detalhe */
 .sheet-bg{position:fixed;inset:0;z-index:20;background:rgba(5,2,1,.6)}
 .sheet{position:fixed;top:0;right:0;bottom:0;z-index:21;display:flex;flex-direction:column;width:min(520px,100%);background:var(--bg-2);border-left:1px solid var(--line-strong);box-shadow:-24px 0 60px rgba(0,0,0,.5);outline:none}
